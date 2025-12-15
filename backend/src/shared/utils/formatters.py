@@ -1,0 +1,2 @@
+# Dummy content for formatters.py
+# This file was generated as part of the project structure setup.
