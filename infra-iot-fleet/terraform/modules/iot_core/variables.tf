@@ -5,5 +5,5 @@ description = "Project name for resource naming"
 variable "aws_region" {
 type = string
 description = "AWS region"
-default = "us-west-1"
+default = "us-east-1"
 }

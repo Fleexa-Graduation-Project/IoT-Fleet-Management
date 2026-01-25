@@ -8,6 +8,18 @@ resource "aws_iot_thing_type" "fleet_device" {
   }
 }
 
+# AWS IoT Core Thing (Actual Device Registration)
+resource "aws_iot_thing" "sample_device" {
+  name            = "${var.project_name}-device"
+  thing_type_name = aws_iot_thing_type.fleet_device.name
+
+  attributes = {
+    deviceType = "sensor"
+    location   = "default"
+    version    = "1.0"
+  }
+}
+
 # AWS IoT Core Policy (Permissions)
 resource "aws_iot_policy" "device_policy" {
   name = "${var.project_name}-device-policy"

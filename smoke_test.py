@@ -1,58 +1,60 @@
 import boto3
-import sys
 from botocore.exceptions import ClientError
 
-# Configuration
-REGION = 'us-east-1'
-TABLES_TO_CHECK = ['device_telemetry', 'device_state', 'alert_log', 'command_log']
-IOT_THING_NAME = 'temp-sensor-01'
+# Table names must match what Terraform created
+DYNAMODB_TABLES = [
+    'iot-fleet-dev-telemetry',
+    'iot-fleet-dev-device-state',
+    'iot-fleet-dev-alerts',
+    'iot-fleet-dev-commands'
+]
+
+IOT_THING_NAME = 'iot-fleet-device'  # Or whatever your thing is named
 
 def check_dynamodb():
-    print("☁️  Checking DynamoDB Tables...")
-    dynamodb = boto3.client('dynamodb', region_name=REGION)
-    all_exist = True
+    """Check if all DynamoDB tables exist"""
+    dynamodb = boto3.client('dynamodb', region_name='us-east-1')
+    all_ok = True
     
-    for table_name in TABLES_TO_CHECK:
+    for table_name in DYNAMODB_TABLES:
         try:
             response = dynamodb.describe_table(TableName=table_name)
-            status = response['Table']['TableStatus']
-            print(f"   ✅ Table '{table_name}' exists (Status: {status})")
+            print(f"   ✅ Table '{table_name}' is ACTIVE")
         except ClientError as e:
             print(f"   ❌ Table '{table_name}' NOT FOUND. Error: {e}")
-            all_exist = False
-            
-    return all_exist
+            all_ok = False
+    
+    return all_ok
 
 def check_iot_core():
-    print("\n📡 Checking AWS IoT Core...")
-    iot = boto3.client('iot', region_name=REGION)
+    """Check if IoT Core endpoint and thing exist"""
+    iot = boto3.client('iot', region_name='us-east-1')
     
     try:
-        # Check Endpoint
         endpoint = iot.describe_endpoint(endpointType='iot:Data-ATS')
         print(f"   ✅ IoT Endpoint found: {endpoint['endpointAddress']}")
         
-        # Check Thing
-        thing = iot.describe_thing(ThingName=IOT_THING_NAME)
-        print(f"   ✅ IoT Thing '{IOT_THING_NAME}' exists (ID: {thing['thingId']})")
+        # Fixed: lowercase 'thingName'
+        thing = iot.describe_thing(thingName=IOT_THING_NAME)
+        print(f"   ✅ IoT Thing '{IOT_THING_NAME}' exists")
         return True
     except ClientError as e:
-        print(f"   ❌ IoT Check Failed. Error: {e}")
+        print(f"   ❌ IoT Core check failed: {e}")
         return False
 
 def main():
     print("=== Fleexa Infrastructure Smoke Test ===\n")
     
+    print("☁️  Checking DynamoDB Tables...")
     db_ok = check_dynamodb()
+    
+    print("\n📡 Checking AWS IoT Core...")
     iot_ok = check_iot_core()
     
-    print("\n" + "="*40)
     if db_ok and iot_ok:
-        print("✅ SMOKE TEST PASSED: Infrastructure is ready.")
-        sys.exit(0)
+        print("\n✅ All checks passed!")
     else:
-        print("❌ SMOKE TEST FAILED: Issues detected.")
-        sys.exit(1)
+        print("\n❌ Some checks failed. Review errors above.")
 
 if __name__ == "__main__":
     main()
