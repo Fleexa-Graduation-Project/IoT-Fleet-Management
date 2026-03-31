@@ -1,2 +1,4 @@
-# Dummy content for requirements.txt
-# This file was generated as part of the project structure setup.
+-r backend/requirements.txt
+-r devices/requirements.txt
+PyYAML
+typing-extensions

@@ -9,8 +9,8 @@ from dataclasses import dataclass, asdict
 import paho.mqtt.client as mqtt
 from enum import Enum
 
-# NEW: Import schema validator
-from simulators.schema_validator import get_validator
+# Import schema validator
+from devices.simulators.schema_validator import get_validator
 
 logging.basicConfig(
     level=logging.INFO,
