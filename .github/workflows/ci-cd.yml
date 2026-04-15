@@ -3,7 +3,7 @@ name: Fleexa IoT Fleet CI/CD
 on:
     workflow_dispatch:
     push:
-        branches: [main]
+        branches: [main, Lambda-CI/CD-Implementation]
     pull_request:
         branches: [main]
 
