@@ -31,13 +31,13 @@ jobs:
               run: mkdir -p logs
 
             - name: Run schema validation tests
-              run: python -m pytest devices/tests/test_schemas.py -v
+              run: python -m pytest devices/tests/unit/test_schemas.py -v
 
             - name: Run sensor unit tests
-              run: python -m pytest devices/tests/test_sensors.py -v
+              run: python -m pytest devices/tests/unit/test_sensors.py -v
 
             - name: Run actuator unit tests
-              run: python -m pytest devices/tests/test_actuators.py -v
+              run: python -m pytest devices/tests/unit/test_actuators.py -v
 
             - name: Verify imports from project root
               run: |
