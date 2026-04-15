@@ -13,13 +13,13 @@ class TemperatureSensor(BaseDevice):
         self.current_temp = 22.0
         self.current_humidity = 50.0
         self.target_temp = 22.0
-        self.hvac_mode = "OFF"   # OFF | HEATING | COOLING
+        self.hvmode = "OFF"   # OFF | HEATING | COOLING
         self.max_temp_today = self.current_temp
         self.min_temp_today = self.current_temp
         self.state = {
-            "temperature_celsius": self.current_temp,
+            "temp": self.current_temp,
             "humidity_percent": self.current_humidity,
-            "hvac_status": self.hvac_mode,
+            "status": self.hvmode,
             "target_temperature": self.target_temp,
         }
 
@@ -28,18 +28,18 @@ class TemperatureSensor(BaseDevice):
         self.current_humidity += random.uniform(-1.0, 1.0)
 
     def _apply_hvac_effect(self):
-        if self.hvac_mode == "COOLING" and self.current_temp > self.target_temp:
+        if self.hvmode == "COOLING" and self.current_temp > self.target_temp:
             self.current_temp -= 0.3
-        elif self.hvac_mode == "HEATING" and self.current_temp < self.target_temp:
+        elif self.hvmode == "HEATING" and self.current_temp < self.target_temp:
             self.current_temp += 0.3
 
     def _check_thermostat(self):
         if self.current_temp > self.target_temp + 2:
-            self.hvac_mode = "COOLING"
+            self.hvmode = "COOLING"
         elif self.current_temp < self.target_temp - 2:
-            self.hvac_mode = "HEATING"
+            self.hvmode = "HEATING"
         else:
-            self.hvac_mode = "OFF"
+            self.hvmode = "OFF"
 
     def _calculate_comfort(self) -> str:
         if 18 <= self.current_temp <= 26 and 30 <= self.current_humidity <= 60:
@@ -57,13 +57,13 @@ class TemperatureSensor(BaseDevice):
     def _check_and_publish_alerts(self):
         if self.current_temp >= 40:
             self.publish_alert("HIGH_TEMPERATURE_CRITICAL", "CRITICAL",
-                               {"temperature_celsius": self.current_temp, "threshold": 40})
+                               {"temp": self.current_temp, "threshold": 40})
         elif self.current_temp >= 35:
             self.publish_alert("HIGH_TEMPERATURE_WARNING", "MEDIUM",
-                               {"temperature_celsius": self.current_temp, "threshold": 35})
+                               {"temp": self.current_temp, "threshold": 35})
         if self.current_temp <= -20:
             self.publish_alert("LOW_TEMPERATURE_CRITICAL", "CRITICAL",
-                               {"temperature_celsius": self.current_temp, "threshold": -20})
+                               {"temp": self.current_temp, "threshold": -20})
         if self.current_humidity >= 90:
             self.publish_alert("HIGH_HUMIDITY_WARNING", "MEDIUM",
                                {"humidity_percent": self.current_humidity, "threshold": 90})
@@ -78,17 +78,17 @@ class TemperatureSensor(BaseDevice):
         self.min_temp_today = min(self.min_temp_today, self.current_temp)
         comfort = self._calculate_comfort()
         self.state.update({
-            "temperature_celsius": self.current_temp,
+            "temp": self.current_temp,
             "humidity_percent": self.current_humidity,
-            "hvac_status": self.hvac_mode,
+            "status": self.hvmode,
             "comfort_index": comfort,
         })
         self._check_and_publish_alerts()
         return {
             "sensor_type": "temperature_humidity",
-            "temperature_celsius": self.current_temp,
+            "temp": self.current_temp,
             "humidity_percent": self.current_humidity,
-            "hvac_status": self.hvac_mode,
+            "status": self.hvmode,
             "comfort_level": comfort,
             "heat_index": self._calculate_heat_index(),
             "max_temp_today": self.max_temp_today,
@@ -107,7 +107,7 @@ class TemperatureSensor(BaseDevice):
         elif action == "SET_MODE":
             mode = parameters.get("mode", "").upper()
             if mode in ["HEATING", "COOLING", "OFF"]:
-                self.hvac_mode = mode
+                self.hvmode = mode
         elif action == "RESET":
             self.current_temp = 22.0
             self.current_humidity = 50.0

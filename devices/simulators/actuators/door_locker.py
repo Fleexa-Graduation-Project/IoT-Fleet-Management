@@ -16,13 +16,13 @@ class DoorLocker(BaseDevice):
 
     def __init__(self, config: DeviceConfig):
         super().__init__(config)
-        self.lock_status  = LockStatus.LOCKED
+        self.lock_state  = LockStatus.LOCKED
         self.battery_level = 100.0
         self.is_jammed    = False
         self.lock_attempts = 0
         self.last_unlock_time = None
         self.state = {
-            "lock_status": self.lock_status.value,
+            "lock_state": self.lock_state.value,
             "battery_level": self.battery_level,
             "is_jammed": False,
             "lock_attempts": 0,
@@ -48,14 +48,14 @@ class DoorLocker(BaseDevice):
     def _execute_lock(self) -> bool:
         if self.is_jammed:
             return False
-        self.lock_status  = LockStatus.LOCKED
+        self.lock_state  = LockStatus.LOCKED
         self.lock_attempts += 1
         return True
 
     def _execute_unlock(self) -> bool:
         if self.is_jammed:
             return False
-        self.lock_status = LockStatus.UNLOCKED
+        self.lock_state = LockStatus.UNLOCKED
         self.last_unlock_time = int(time.time())
         self.lock_attempts += 1
         return True
@@ -64,7 +64,7 @@ class DoorLocker(BaseDevice):
         self._drain_battery()
         self._check_jam()
         self.state.update({
-            "lock_status": self.lock_status.value,
+            "lock_state": self.lock_state.value,
             "battery_level": self.battery_level,
             "is_jammed": self.is_jammed,
             "lock_attempts": self.lock_attempts,
@@ -72,7 +72,7 @@ class DoorLocker(BaseDevice):
         self._check_and_publish_alerts()
         return {
             "sensor_type": "door_locker",
-            "lock_status": self.lock_status.value,
+            "lock_state": self.lock_state.value,
             "battery_level": self.battery_level,
             "is_jammed": self.is_jammed,
             "lock_attempts": self.lock_attempts,
@@ -95,7 +95,7 @@ class DoorLocker(BaseDevice):
             logger.info(f"Unlock: {'OK' if success else 'FAILED'}")
 
         elif action == "EMERGENCY_UNLOCK":
-            self.lock_status = LockStatus.UNLOCKED
+            self.lock_state = LockStatus.UNLOCKED
             self.is_jammed   = False
             logger.warning(f"[{self.config.device_id}] EMERGENCY UNLOCK executed!")
 

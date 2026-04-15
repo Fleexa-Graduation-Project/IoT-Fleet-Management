@@ -23,11 +23,11 @@ variable "enable_iot_lambda_rules" {
 variable "telemetry_processor_lambda_name" {
   type        = string
   description = "Name of existing Lambda function that processes telemetry messages"
-  default     = "iot-fleet-telemetry-processor"
+  default     = "processing_main_lambda"
 }
 
 variable "alert_processor_lambda_name" {
   type        = string
   description = "Name of existing Lambda function that processes alert messages"
-  default     = "iot-fleet-alert-processor"
+  default     = "processing_main_lambda"
 }
