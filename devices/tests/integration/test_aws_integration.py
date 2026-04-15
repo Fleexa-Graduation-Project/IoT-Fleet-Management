@@ -1,2 +1,6 @@
-# Dummy content for test_aws_integration.py
-# This file was generated as part of the project structure setup.
+import pytest
+
+@pytest.mark.skip(reason="Not running AWS integration tests in simple local CI yet.")
+def test_aws_iot_connection():
+    # In a real integration test, we'd attempt connection to the actual AWS IoT Core endpoint.
+    pass
