@@ -12,7 +12,7 @@ class LightSensor(BaseDevice):
         super().__init__(config)
         self.time_of_day = 8.0  # Start at 8 AM
         self.light_level = 0.0
-        self.state = {"ambient_light_lux": 0, "is_dark": True, "brightness_percent": 0}
+        self.state = {"light_level": 0, "is_dark": True, "brightness_percent": 0}
 
     def _simulate_light_cycle(self):
         self.time_of_day = (self.time_of_day + random.uniform(0.05, 0.15)) % 24
@@ -33,14 +33,14 @@ class LightSensor(BaseDevice):
         self._simulate_light_cycle()
         is_dark = self.light_level < 50
         self.state.update({
-            "ambient_light_lux": round(self.light_level, 1),
+            "light_level": round(self.light_level, 1),
             "is_dark": is_dark,
             "brightness_percent": int(self.light_level / 1000 * 100),
         })
         self._check_and_publish_alerts()
         return {
             "sensor_type": "light_sensor",
-            "ambient_light_lux": round(self.light_level, 1),
+            "light_level": round(self.light_level, 1),
             "is_dark": is_dark,
             "brightness_percent": int(self.light_level / 1000 * 100),
             "time_of_day": f"{int(self.time_of_day):02d}:00",

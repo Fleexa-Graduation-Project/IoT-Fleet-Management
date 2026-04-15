@@ -14,7 +14,7 @@ class DoorSensor(BaseDevice):
         self.open_duration = 0
         self.last_change = None
         self.intrusion_detected = False
-        self.state = {"status": "CLOSED", "duration_open_seconds": 0,
+        self.state = {"open": False, "duration_open_seconds": 0,
                       "last_change": None, "intrusion": False}
 
     def _check_and_publish_alerts(self):
@@ -41,7 +41,7 @@ class DoorSensor(BaseDevice):
         self.intrusion_detected = random.random() < 0.002 and self.is_open
         status = "OPEN" if self.is_open else "CLOSED"
         self.state.update({
-            "status": status,
+            "open": self.is_open,
             "duration_open_seconds": self.open_duration,
             "last_change": self.last_change,
             "intrusion": self.intrusion_detected,
@@ -49,7 +49,7 @@ class DoorSensor(BaseDevice):
         self._check_and_publish_alerts()
         return {
             "sensor_type": "door_sensor",
-            "status": status,
+            "open": self.is_open,
             "duration_open_seconds": self.open_duration,
             "intrusion_detected": self.intrusion_detected,
             "last_change": self.last_change,

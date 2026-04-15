@@ -1,2 +1,11 @@
-# Dummy content for outputs.tf
-# This file was generated as part of the project structure setup.
+output "function_arn" {
+  value = aws_lambda_function.this.arn
+}
+
+output "function_name" {
+  value = aws_lambda_function.this.function_name
+}
+
+output "role_arn" {
+  value = aws_iam_role.lambda_exec.arn
+}
