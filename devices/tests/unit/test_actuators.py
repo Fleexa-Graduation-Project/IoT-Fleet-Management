@@ -38,27 +38,27 @@ class TestDoorLocker:
     def test_telemetry_has_required_fields(self):
         actuator = DoorLocker(make_config("door-locker-01", "actuator"))
         telemetry = actuator.generate_telemetry()
-        assert "lock_status" in telemetry
+        assert "lock_state" in telemetry
         assert "battery_level" in telemetry
         assert "is_jammed" in telemetry
 
     def test_initial_state_is_locked(self):
         actuator = DoorLocker(make_config("door-locker-01", "actuator"))
         telemetry = actuator.generate_telemetry()
-        assert telemetry["lock_status"] == "LOCKED"
+        assert telemetry["lock_state"] == "LOCKED"
 
     def test_lock_command(self):
         actuator = DoorLocker(make_config("door-locker-01", "actuator"))
         actuator.handle_command({"request_id": "r1", "action": "UNLOCK", "parameters": {}})
         actuator.handle_command({"request_id": "r2", "action": "LOCK", "parameters": {}})
         telemetry = actuator.generate_telemetry()
-        assert telemetry["lock_status"] == "LOCKED"
+        assert telemetry["lock_state"] == "LOCKED"
 
     def test_unlock_command(self):
         actuator = DoorLocker(make_config("door-locker-01", "actuator"))
         actuator.handle_command({"request_id": "r1", "action": "UNLOCK", "parameters": {}})
         telemetry = actuator.generate_telemetry()
-        assert telemetry["lock_status"] == "UNLOCKED"
+        assert telemetry["lock_state"] == "UNLOCKED"
 
     def test_battery_drains_over_time(self):
         actuator = DoorLocker(make_config("door-locker-01", "actuator"))
@@ -74,7 +74,7 @@ class TestACCurtainActuator:
     def test_telemetry_has_required_fields(self):
         actuator = ACCurtainActuator(make_config("ac-curtain-01", "actuator"))
         telemetry = actuator.generate_telemetry()
-        assert "ac_mode" in telemetry
+        assert "mode" in telemetry
         assert "curtain_position_percent" in telemetry
         assert "ac_power_watts" in telemetry
 
@@ -86,7 +86,7 @@ class TestACCurtainActuator:
             "parameters": {"mode": "COOL"}
         })
         telemetry = actuator.generate_telemetry()
-        assert telemetry["ac_mode"] == "COOL"
+        assert telemetry["mode"] == "COOL"
 
     def test_curtain_open_command(self):
         actuator = ACCurtainActuator(make_config("ac-curtain-01", "actuator"))
