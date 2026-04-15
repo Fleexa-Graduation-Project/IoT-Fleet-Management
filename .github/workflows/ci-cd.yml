@@ -63,6 +63,7 @@ jobs:
             - name: Build Docker image
               run: |
                   docker build \
+                    -f devices/Dockerfile \
                     -t fleexa-iot-simulator:${{ github.sha }} \
                     -t fleexa-iot-simulator:latest \
                     .
