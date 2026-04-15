@@ -2,7 +2,7 @@ import random
 from typing import Dict, Any
 from enum import Enum
 import logging
-from simulators.basedevice import BaseDevice, DeviceConfig
+from devices.simulators.base_device import BaseDevice, DeviceConfig
 
 logger = logging.getLogger(__name__)
 
