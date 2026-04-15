@@ -1,6 +1,7 @@
 import pytest
 import sys
 import os
+from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
 
 from devices.simulators.actuators.door_locker import DoorLocker
@@ -13,6 +14,7 @@ def make_config(device_id, device_type):
         device_name=device_id,
         device_type=device_type,
         location="Test Room",
+        sensor_type=device_type, 
         ca_cert="certs/AmazonRootCA1.pem",
         client_cert=f"certs/devices/{device_id}.crt",
         client_key=f"certs/devices/{device_id}.key",
@@ -21,6 +23,13 @@ def make_config(device_id, device_type):
         publish_interval=5,
     )
 
+@pytest.fixture(autouse=True)
+def mock_mqtt(mocker):
+    with patch("devices.simulators.base_device.mqtt.Client") as mock_client:
+        mock_instance = MagicMock()
+        mock_client.return_value = mock_instance
+        yield mock_instance
+        
 class TestDoorLocker:
     def test_instantiation(self):
         actuator = DoorLocker(make_config("door-locker-01", "actuator"))
