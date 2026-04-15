@@ -78,7 +78,6 @@ class BaseDevice(ABC):
     def _setup_mqtt_client(self):
         """Configure MQTT client with TLS"""
         self.mqtt_client = mqtt.Client(
-            mqtt.CallbackAPIVersion.VERSION1,
             client_id=self.config.device_id,
             protocol=mqtt.MQTTv311,
             transport="tcp"
