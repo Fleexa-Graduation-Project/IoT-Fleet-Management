@@ -2,21 +2,21 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copy root requirements and sub-requirements
-COPY requirements.txt .
-COPY backend/requirements.txt ./backend/
-COPY devices/requirements.txt ./devices/
-
+COPY devices/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy required directories for the simulator
+# Maintain structure for modules and relative schema path
+COPY devices/simulators/ ./devices/simulators/
 COPY backend/docs/mqtt/schemas/ ./backend/docs/mqtt/schemas/
-COPY devices/ ./devices/
 COPY orchestrator.py .
+
+RUN mkdir -p logs
 
 # Certs mounted at runtime — never bake into image
 VOLUME ["/app/certs"]
 
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV MQTT_BROKER=localhost
 
 CMD ["python", "-u", "orchestrator.py"]
