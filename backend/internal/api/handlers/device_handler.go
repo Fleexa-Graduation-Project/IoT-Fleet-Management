@@ -43,7 +43,8 @@ func addLightStatus(payload map[string]interface{}, operationalState string) {
     }
 }
 
-/*func addTempStats(response gin.H, data []models.Telemetry, metric, deviceID string, now int64) {
+/*
+func addTempStats(response gin.H, data []models.Telemetry, metric, deviceID string, now int64) {
     stats, err := telemetry.CalculateTempState(data, metric, now)
     if err != nil {
         slog.Warn("failed to calculate temp stats", "device_id", deviceID, "metric", metric, "error", err)
@@ -51,7 +52,8 @@ func addLightStatus(payload map[string]interface{}, operationalState string) {
     response["min"] = stats.Min
     response["max"] = stats.Max
     response["average"] = stats.Average
-}*/
+}
+*/
 
 // handling GET /devices
 func (handler *DeviceHandler) GetDevices(context *gin.Context) {
