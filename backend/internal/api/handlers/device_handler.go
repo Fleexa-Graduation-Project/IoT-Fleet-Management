@@ -53,7 +53,8 @@ func addTempStats(response gin.H, data []models.Telemetry, metric, deviceID stri
     response["max"] = stats.Max
     response["average"] = stats.Average
 }
-*/
+	*/
+
 
 // handling GET /devices
 func (handler *DeviceHandler) GetDevices(context *gin.Context) {
