@@ -1,2 +1,5 @@
-# Dummy content for test_orchestrator.py
-# This file was generated as part of the project structure setup.
+import pytest
+
+def test_orchestrator_dummy():
+    # A dummy test for the orchestrator until its core logic is defined directly under tests
+    assert True

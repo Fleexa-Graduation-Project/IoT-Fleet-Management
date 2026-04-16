@@ -1,2 +1,50 @@
-# Dummy content for docker-compose.yml
-# This file was generated as part of the project structure setup.
+version: "3.8"
+
+services:
+  iot-simulator:
+    build:
+      context: ..
+      dockerfile: devices/Dockerfile
+    container_name: fleexa-iot-simulator
+    environment:
+      - AWS_REGION=us-east-1
+      - MQTT_BROKER=${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      - MQTT_PORT=8883
+      - USE_LOCALSTACK=false
+    volumes:
+      - ../certs:/app/certs:ro         # read-only cert mount
+      - ../logs:/app/logs
+    networks:
+      - iot-network
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── LocalStack (only for CI/dev) ──────────────────────────────────────────
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack-iot
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=iot,dynamodb,lambda,apigateway,s3
+      - DEBUG=1
+      - DEFAULT_REGION=us-east-1
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - localstack_data:/tmp/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - iot-network
+    profiles:
+      - localstack
+
+networks:
+  iot-network:
+    driver: bridge
+
+volumes:
+  localstack_data:
