@@ -5,6 +5,7 @@ import (
     "net/http"
     "time"
     "fmt"
+	"sort"
     "context"
 	
 
@@ -71,6 +72,23 @@ func (handler *DeviceHandler) GetDevices(context *gin.Context) {
         }
     }
     context.JSON(http.StatusOK, gin.H{"data": states})
+}
+//GET /alerts (notifications for all devices)
+func (handler *DeviceHandler) GetSortedAlerts(context *gin.Context) {
+	now := time.Now().Unix()
+	cutoff := now - (7 * 86400) 
+
+	alertList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), cutoff)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch global alerts"})
+		return
+	}
+
+	sort.Slice(alertList, func(i, j int) bool {
+		return alertList[i].Timestamp > alertList[j].Timestamp
+	})
+
+	context.JSON(http.StatusOK, gin.H{"data": alertList})
 }
 
 // showing last 5 Recent Events with its time - the Last Activity time - warning and alerts based on unlock time

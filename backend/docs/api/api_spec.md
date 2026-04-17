@@ -172,6 +172,38 @@ Retrieves warnings & critical events.
   ]
 }
 ```
+### 2.3 Get All Sorted Alerts for all devices (Notifications Screen)
+
+Retrieves all recent sorted alerts across all devices for the last 7 days.
+
+- **Endpoint:** `GET /alerts`
+
+- **Response (200 OK):**
+```json
+{
+  "data": [
+    {
+      "device_id": "gas-sensor-01",
+      "timestamp": 1708434000,
+      "type": "gas-sensor",
+      "severity": "CRITICAL",
+      "payload": {
+        "gas_level": 950,
+        "status": "DANGER",
+        "alarm_on": true
+      }
+    },
+    {
+      "device_id": "door-actuator-01",
+      "timestamp": 1708430000,
+      "type": "door-actuator",
+      "severity": "WARNING",
+      "payload": {
+        "lock_state": "UNLOCKED"
+      }
+    }
+  ]
+}
 
 ---
 

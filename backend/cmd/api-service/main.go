@@ -78,11 +78,13 @@ if err != nil {
 	v1 := router.Group("/api/v1")
 	{
 		v1.GET("/devices", deviceHandler.GetDevices)
+		v1.GET("/alerts", deviceHandler.GetSortedAlerts)
 		v1.GET("/devices/:id", deviceHandler.GetDeviceByID)
 		v1.GET("/devices/:id/telemetry", deviceHandler.GetDeviceTelemetry)
 		v1.GET("/devices/:id/alerts", deviceHandler.GetDeviceAlerts)
 		v1.GET("/system/overview", deviceHandler.GetSystemOverview)
 		v1.POST("/devices/:id/commands", deviceHandler.SendCommand)
+		
 	}
 	
 
