@@ -117,10 +117,10 @@ func showDoorStats(payload map[string]interface{}, history []models.Telemetry, n
 	}
 }
 
-// getting normal state in door insights
-func addDoorInsights(response gin.H, data []models.Telemetry, state *models.DeviceState, now int64) {
+//getting normal state in door insights
+func addDoorInsights(payload map[string]interface{}, data []models.Telemetry, state *models.DeviceState, now int64) {
 	avgUnlock := telemetry.CalculateAvgUnlock(data, now)
-	response["average_unlock_minutes"] = avgUnlock
+	payload["average_unlock"] = avgUnlock
 
 	
 	normalDuration := 15.0 
@@ -130,9 +130,9 @@ func addDoorInsights(response gin.H, data []models.Telemetry, state *models.Devi
 	}
 	
 	if avgUnlock > normalDuration {
-		response["unlock_duration_status"] = "Above Normal"
+		payload["unlock_duration_status"] = "Above Normal"
 	} else {
-		response["unlock_duration_status"] = "Normal"
+		payload["unlock_duration_status"] = "Normal"
 	}
 }
 
@@ -211,6 +211,13 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 			slog.Warn("failed to fetch recent door history", "device_id", deviceID, "error", dbErr)
 		}
 		showDoorStats(state.Payload, recentHistory, now)
+		cutoff24h := now - 86400
+		history24h, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 0, cutoff24h)
+		if dbErr != nil {
+			slog.Warn("failed to fetch 24h door history", "device_id", deviceID, "error", dbErr)
+		} else {
+			addDoorInsights(state.Payload, history24h, state, now)
+		}
 	}
     if state.Type == "ac-actuator" {
 		now := time.Now().Unix()
@@ -285,10 +292,7 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
         response["source"] = "DynamoDB"
         response["data"] = telemetry.FilterTime(rawData, metric, period, now)
 
-       
-        if state.Type == "door-actuator" {
-			addDoorInsights(response, rawData, state, now)
-		}
+        
         if state.Type == "ac-actuator" {
 			if period == "7d" { 
 				// The Usage Bar Chart
