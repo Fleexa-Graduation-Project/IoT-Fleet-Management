@@ -116,6 +116,38 @@ Retrieves full device state + insights.
   "last_seen_at": 1708434000
 }
 ```
+- **Endpoint:** `GET /devices/door-actuator-01`
+
+- **Response (200 OK):**
+```json
+{
+  "device_id": "door-actuator-01",
+  "type": "door-actuator",
+  "status": "ONLINE",
+  "operational_state": "LOCKED",
+  "health": "HEALTHY",
+  "payload": {
+    "lock_state": "LOCKED",
+    "open": false,
+    "security_alert": "SAFE",
+    "last_activity_time": "12 mins ago",
+    "average_unlock": 7.0,
+    "unlock_duration_status": "Normal",
+    "recent_events": [
+      {
+        "event": "Door locked",
+        "time": "8:45 PM",
+        "timestamp": 1713386700
+      },
+      {
+        "event": "Door unlocked",
+        "time": "8:42 PM",
+        "timestamp": 1713386520
+      }
+    ]
+  },
+  "last_seen_at": 1713386750
+}
 
 ---
 
