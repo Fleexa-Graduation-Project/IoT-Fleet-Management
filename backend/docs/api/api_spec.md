@@ -148,8 +148,43 @@ Retrieves full device state + insights.
   },
   "last_seen_at": 1713386750
 }
+```
+
+- **Endpoint:** `GET /devices/gas-sensor-01`
+
+- **Response (200 OK):**
+```json
+{
+  "device_id": "gas-sensor-01",
+  "type": "gas-sensor",
+  "status": "ONLINE",
+  "operational_state": "WARNING",
+  "health": "HEALTHY",
+  "payload": {
+    "gas_level": 520.0,
+    "status": "WARNING",
+    "alarm_on": false,
+    "recent_events": [
+      {
+        "description": "Gas level Exceed safe limit",
+        "gas_level": "500 PPM",
+        "time": "1 min ago",
+        "timestamp": 1713386700
+      },
+      {
+        "description": "Gas spike detected",
+        "gas_level": "350 PPM",
+        "time": "1 hour ago",
+        "timestamp": 1713383100
+      }
+    ]
+  },
+  "last_seen_at": 1713386750
+}
+```
 
 ---
+
 
 ## 2. Telemetry, Analytics, and Alerts (The Insights)
 

@@ -245,11 +245,11 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 	}
 
 	if state.Type == "gas-sensor" {
-		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 5, 0)
+		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 50, 0)
 		if dbErr != nil {
 			slog.Warn("failed to fetch recent gas history", "device_id", deviceID, "error", dbErr)
 		} else if len(recentHistory) > 0 {
-			state.Payload["recent_events"] = recentHistory
+			state.Payload["recent_events"] = telemetry.GetGasEvents(recentHistory)
 		}
 	}
 	
