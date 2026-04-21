@@ -7,7 +7,7 @@
 
 ## 1. System Overview & Device State
 
-### 1.1 Get Global System Overview (NEW)
+### 1.1 Get System Overview
 
 Retrieves high-level aggregated data for the Global Dashboard (system health, alerts, energy).
 
@@ -32,7 +32,7 @@ Retrieves high-level aggregated data for the Global Dashboard (system health, al
       { "label": "Tue", "value": 1 }
     ]
   },
-  "alerts_chart_max": 3.0,
+  "alerts_chart_max": 5.0,
   "energy_consumption": [
     { "label": "Mon", "value": 12.4 },
     { "label": "Tue", "value": 15.1 }
@@ -61,10 +61,7 @@ Retrieves live status of all devices.
       "operational_state": "NORMAL",
       "health": "HEALTHY",
       "payload": {
-        "temp": 24.5,
-        "Min": 22.0,
-        "Max": 29.0,
-        "Average": 25.4
+        "temp": 24.5
       },
       "last_seen_at": 1708434000
     },
@@ -95,6 +92,7 @@ Retrieves full device state + insights.
 
 - **Endpoint:** `GET /devices/:id`
 
+- **Endpoint:** `GET /devices/ac-actuator-01`
 - **Response (200 OK):**
 
 ```json
@@ -195,6 +193,47 @@ Retrieves full device state + insights.
 }
 ```
 
+- **Endpoint:** `GET /devices/light-sensor-01`
+
+- **Response (200 OK):**
+```json
+{
+  "device_id": "light-sensor-01",
+  "type": "light-sensor",
+  "status": "ONLINE",
+  "operational_state": "NORMAL",
+  "health": "HEALTHY",
+  "payload": {
+    "light_level": 450.0,
+    "light_status": "Normal" 
+  },
+  "last_seen_at": 1713386750
+}
+```
+
+- **Endpoint:** `GET /devices/temp-sensor-01`
+- **Response (200 OK):**
+```json
+{
+  "device_id": "temp-sensor-01",
+  "type": "temp-sensor",
+  "status": "ONLINE",
+  "operational_state": "NORMAL",
+  "health": "HEALTHY",
+  "payload": {
+    "temp": 24.5,
+    "Min": 22.0,
+    "Max": 29.0,
+    "Average": 25.4
+  },
+  "last_seen_at": 1708434000
+}
+``` 
+
+
+
+
+
 ---
 
 ## 2. Telemetry, Analytics, and Alerts (The Insights)
@@ -218,9 +257,33 @@ Retrieves historical data + analytics.
   "source": "DynamoDB",
   "data": [
     { "label": "14:00", "value": 29.0 },
-    { "label": "15:00", "value": 28.5 }
+    { "label": "16:00", "value": 28.5 }
   ],
   "chart_max": 29.0
+}
+```
+- **Endpoint:** `GET /devices/light-sensor-01/telemetry?period=24h&metric=light_level`
+- **Response (200 OK):**
+```json
+{
+  "device_id": "light-sensor-01",
+  "period": "24h",
+  "source": "DynamoDB",
+  "data": [
+    { "label": "18:00", "value": 180.0 },
+    { "label": "20:00", "value": 45.0 },
+    { "label": "22:00", "value": 0.0 },
+    { "label": "00:00", "value": 0.0 },
+    { "label": "02:00", "value": 0.0 },
+    { "label": "04:00", "value": 15.0 },
+    { "label": "06:00", "value": 120.0 },
+    { "label": "08:00", "value": 350.0 },
+    { "label": "10:00", "value": 680.0 },
+    { "label": "12:00", "value": 850.0 },
+    { "label": "14:00", "value": 810.0 },
+    { "label": "16:00", "value": 410.0 }
+  ],
+  "chart_max": 850.0
 }
 ```
 
@@ -228,7 +291,7 @@ Retrieves historical data + analytics.
 
 ### 2.2 Get Device Alerts
 
-Retrieves warnings & critical events.
+Retrieves warnings & critical events for specific device.
 
 - **Endpoint:** `GET /devices/:id/alerts`
 
@@ -260,7 +323,7 @@ Retrieves all recent sorted alerts across all devices for the last 7 days.
 
 - **Response (200 OK):**
 
-````json
+```json
 {
   "data": [
     {
@@ -285,6 +348,7 @@ Retrieves all recent sorted alerts across all devices for the last 7 days.
     }
   ]
 }
+```
 
 ---
 
@@ -306,7 +370,7 @@ Sends command to actuator via MQTT.
     "mode": "COOLING"
   }
 }
-````
+```
 
 - **Response (202 Accepted):**
 
