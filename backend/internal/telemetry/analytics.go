@@ -51,9 +51,10 @@ func GetTimeFormat(period string) string {
 	}
 }
 
-func FilterTime(history []models.Telemetry, metric string, period string, now int64) []ChartPoint {
-    cutoff := PeriodCutoff(now, period)
+func FilterTime(history []models.Telemetry, metric string, period string, now int64) ([]ChartPoint, float64) {    
+	cutoff := PeriodCutoff(now, period)
 	timeFormat := GetTimeFormat(period)
+	maxVal := -math.MaxFloat64
 
     var mapCapacity int
     switch period {
@@ -111,6 +112,10 @@ func FilterTime(history []models.Telemetry, metric string, period string, now in
         if count, wasSensor := countMap[label]; wasSensor && count > 0 {
             finalValue = total / float64(count)
         }
+
+		if finalValue > maxVal {
+			maxVal = finalValue
+		}
         chartResult = append(chartResult, ChartPoint{
             Label: label,
             Value: math.Round(finalValue*10) / 10,
@@ -121,7 +126,24 @@ func FilterTime(history []models.Telemetry, metric string, period string, now in
         return cmp.Compare(a.Label, b.Label)
     })
 
-    return chartResult
+	if maxVal == -math.MaxFloat64 {
+		maxVal = 0.0
+	}
+
+    return chartResult, math.Round(maxVal*10)/10
+}
+// get the max y value for charts
+func GetChartMax(data []ChartPoint) float64 {
+	if len(data) == 0 {
+		return 0.0
+	}
+	maxVal := -math.MaxFloat64
+	for _, pt := range data {
+		if pt.Value > maxVal {
+			maxVal = pt.Value
+		}
+	}
+	return maxVal
 }
 
 func TimeAgo(ts int64, now int64) string {

@@ -290,8 +290,9 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
         }
 
         response["source"] = "DynamoDB"
-        response["data"] = telemetry.FilterTime(rawData, metric, period, now)
-
+       chartData, chartMax := telemetry.FilterTime(rawData, metric, period, now)
+		response["data"] = chartData
+		response["chart_max"] = chartMax
         
         if state.Type == "ac-actuator" {
 			if period == "7d" { 
@@ -385,6 +386,12 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		slog.Warn("Failed to get alerts for system overview", "error", err)
 	}
 	alertsChart := telemetry.GetAlerts(alertsList, timeFilter)
+	warningMax := telemetry.GetChartMax(alertsChart["warning"])
+	criticalMax := telemetry.GetChartMax(alertsChart["critical"])
+	alertsMax := warningMax
+	if criticalMax > warningMax {
+		alertsMax = criticalMax
+	}
 
     //calculate Energy Consumption
 	acData, err := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), "ac-01", 0, cutoff)  //ac name may be changed later
@@ -394,13 +401,16 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 	
 	acUsage := telemetry.CalculateACUsage(acData, now, timeFilter)
 	energyData := telemetry.CalculateEnergy(acUsage)
+	energyMax := telemetry.GetChartMax(energyData)
 
 
 	context.JSON(http.StatusOK, gin.H{
 		"system_status":  systemStatus,
 		"devices_online": fmt.Sprintf("%d / %d", onlineCount, len(states)),
 		"alerts_chart":   alertsChart,
+		"alerts_chart_max":   alertsMax,
         "energy_consumption": energyData,
+		"energy_chart_max":   energyMax,
 	})
 }
 

@@ -13,9 +13,11 @@ Retrieves high-level aggregated data for the Global Dashboard (system health, al
 
 - **Endpoint:** `GET /system/overview`
 - **Query Parameters (Optional):**
+
   - `period` (string): `24h`, `7d`, `1m`
 
 - **Response (200 OK):**
+
 ```json
 {
   "system_status": "Connected",
@@ -30,10 +32,12 @@ Retrieves high-level aggregated data for the Global Dashboard (system health, al
       { "label": "Tue", "value": 1 }
     ]
   },
+  "alerts_chart_max": 3.0,
   "energy_consumption": [
     { "label": "Mon", "value": 12.4 },
     { "label": "Tue", "value": 15.1 }
-  ]
+  ],
+  "energy_chart_max": 15.1
 }
 ```
 
@@ -46,6 +50,7 @@ Retrieves live status of all devices.
 - **Endpoint:** `GET /devices`
 
 - **Response (200 OK):**
+
 ```json
 {
   "data": [
@@ -56,7 +61,10 @@ Retrieves live status of all devices.
       "operational_state": "NORMAL",
       "health": "HEALTHY",
       "payload": {
-        "temp": 24.5
+        "temp": 24.5,
+        "Min": 22.0,
+        "Max": 29.0,
+        "Average": 25.4
       },
       "last_seen_at": 1708434000
     },
@@ -88,6 +96,7 @@ Retrieves full device state + insights.
 - **Endpoint:** `GET /devices/:id`
 
 - **Response (200 OK):**
+
 ```json
 {
   "device_id": "ac-actuator-01",
@@ -116,9 +125,11 @@ Retrieves full device state + insights.
   "last_seen_at": 1708434000
 }
 ```
+
 - **Endpoint:** `GET /devices/door-actuator-01`
 
 - **Response (200 OK):**
+
 ```json
 {
   "device_id": "door-actuator-01",
@@ -153,6 +164,7 @@ Retrieves full device state + insights.
 - **Endpoint:** `GET /devices/gas-sensor-01`
 
 - **Response (200 OK):**
+
 ```json
 {
   "device_id": "gas-sensor-01",
@@ -185,7 +197,6 @@ Retrieves full device state + insights.
 
 ---
 
-
 ## 2. Telemetry, Analytics, and Alerts (The Insights)
 
 ### 2.1 Get Device Telemetry & Insights
@@ -194,10 +205,12 @@ Retrieves historical data + analytics.
 
 - **Endpoint:** `GET /devices/:id/telemetry`
 - **Query Parameters:**
+
   - `period`: `24h`, `7d`, `1m`
   - `metric`: e.g. `temp`, `light_level`
 
 - **Response (200 OK):**
+
 ```json
 {
   "device_id": "temp-sensor-01",
@@ -207,9 +220,7 @@ Retrieves historical data + analytics.
     { "label": "14:00", "value": 29.0 },
     { "label": "15:00", "value": 28.5 }
   ],
-  "min": 22.0,
-  "max": 29.0,
-  "average": 25.4
+  "chart_max": 29.0
 }
 ```
 
@@ -222,6 +233,7 @@ Retrieves warnings & critical events.
 - **Endpoint:** `GET /devices/:id/alerts`
 
 - **Response (200 OK):**
+
 ```json
 {
   "data": [
@@ -239,6 +251,7 @@ Retrieves warnings & critical events.
   ]
 }
 ```
+
 ### 2.3 Get All Sorted Alerts for all devices (Notifications Screen)
 
 Retrieves all recent sorted alerts across all devices for the last 7 days.
@@ -246,7 +259,8 @@ Retrieves all recent sorted alerts across all devices for the last 7 days.
 - **Endpoint:** `GET /alerts`
 
 - **Response (200 OK):**
-```json
+
+````json
 {
   "data": [
     {
@@ -292,9 +306,10 @@ Sends command to actuator via MQTT.
     "mode": "COOLING"
   }
 }
-```
+````
 
 - **Response (202 Accepted):**
+
 ```json
 {
   "message": "Command dispatched successfully",
@@ -310,6 +325,6 @@ Authentication will be handled via AWS Cognito or a dedicated service.
 
 ### 4.1 Planned Auth Flows
 
-- **Sign In:** `POST /auth/login` → Returns JWT  
-- **Sign Up:** `POST /auth/register`  
+- **Sign In:** `POST /auth/login` → Returns JWT
+- **Sign Up:** `POST /auth/register`
 - **Verify:** `POST /auth/verify`
