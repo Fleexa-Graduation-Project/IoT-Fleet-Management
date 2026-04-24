@@ -3,6 +3,7 @@ package ingestion
 import (
 	"context"
 	"errors"
+	"time"
 	"fmt"
 	"log/slog"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/validation"
 	"github.com/Fleexa-Graduation-Project/Backend/models"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
 )
 
 type Service struct {
@@ -18,14 +20,23 @@ type Service struct {
 	TelemetryStore *telemetry.TelemetryStore
 	AlertStore     *alerts.AlertStore
 	StateStore     *devices.StateStore
+	Engine         *rules.AlertEngine
 }
 
 func (s *Service) HandleRequest(ctx context.Context, event map[string]interface{}) (err error) {
+	start := time.Now()  //start when the rwuest enters the handler
 	defer func() {
 		if r := recover(); r != nil {
-			s.Logger.Error("CRITICAL: Lambda Panic Recovered", "panic", r)
-			err = fmt.Errorf("internal server error")
+			s.Logger.Error("CRITICAL: lambda panic recovered", "panic", r)
+			err = fmt.Errorf("internal server error!!")
 		}
+
+		duration := time.Since(start)
+		s.Logger.Info("lambda execution complete",
+			"execution_time", duration.Milliseconds(),
+			"execution_time", duration.String(),
+			"success", err == nil,
+		)
 	}() 
 
 	//validating the message
@@ -63,13 +74,13 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 		for _, itemRaw := range items {
 			itemMap, ok := itemRaw.(map[string]interface{})
 			if !ok {
-				service.Logger.Warn("Skipping invalid item in batch", "device_id", deviceID)
+				service.Logger.Warn("skipping invalid item in batch", "device_id", deviceID)
 				continue
 			}
 
-			// Validating individual item structure
+			//validating individual item structure
 			if err := validation.ValidatePayload(envelope.Type, itemMap); err != nil {
-				service.Logger.Warn("Skipping malformed payload in batch", "error", err)
+				service.Logger.Warn("skipping malformed payload in batch", "error", err)
 				continue
 			}
 
@@ -95,7 +106,7 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 
 		if len(telemetryList) > 0 {
 			if err := service.TelemetryStore.SaveTelemetryBatch(ctx, telemetryList); err != nil {
-				service.Logger.Error("Failed to save batch telemetry", "error", err)
+				service.Logger.Error("failed to save batch telemetry", "error", err)
 				return err
 			}
 
@@ -112,6 +123,10 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 	}
 
 	service.Logger.Info("saving single telemetry", "device_id", deviceID)
+
+	if envelope.Type == "gas-sensor" {
+		service.Engine.HandleGas(ctx, envelope.DeviceID, envelope.Payload)
+	}
 
 	if err := service.TelemetryStore.SaveTelemetry(ctx, data); err != nil {
 		service.Logger.Error("failed to save telemetry", "error", err)
