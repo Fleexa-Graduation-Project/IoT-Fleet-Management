@@ -3,11 +3,14 @@ package rules
 import (
 	"context"
 	"log/slog"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/Fleexa-Graduation-Project/Backend/models"
 )
 
+//1 min EventBridge Cron
 func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
 	states, err := engine.stateStore.GetAllStates(ctx)
 	if err != nil {
@@ -16,75 +19,82 @@ func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
 	}
 
 	now := time.Now().Unix()
+	var wg sync.WaitGroup
 
 	for _, state := range states {
-		if state.Type == "door-actuator" {
-			lockState, _ := state.Payload["lock_state"].(string)
-			
-			if lockState == "UNLOCKED" {
-				// get the timestamp of when it was unlocked
-				lastUnlockFloat, ok := state.Payload["last_unlock"].(float64)
-				if !ok {
+		if state.Type == "door-sensor" || state.Type == "door-actuator" {
+
+			isOpen := false
+			if openBool, ok := state.Payload["open"].(bool); 
+			ok {
+				isOpen = openBool
+			} else if openStr, ok := state.Payload["open"].(string); 
+			ok {
+				lower := strings.ToLower(openStr)
+				isOpen = (lower == "true" || lower == "open")
+			}
+
+			if isOpen {
+				var startTimestamp int64
+
+				if lastUnlockFloat, ok := state.Payload["last_unlock"].(float64); ok {
+					startTimestamp = int64(lastUnlockFloat)
+				} else if lastChangeFloat, ok := state.Payload["last_change"].(float64); ok {
+					startTimestamp = int64(lastChangeFloat)
+				}
+
+				if startTimestamp == 0 {
 					continue
 				}
-				
-				lastUnlock := int64(lastUnlockFloat)
-				minutesUnlocked := float64(now - lastUnlock) / 60.0
 
+				minutesUnlocked := float64(now-startTimestamp) / 60.0
+				severity := ""
+				description := ""
+
+				// 7 mins WARNING notification
+				if minutesUnlocked >= 7.0 && minutesUnlocked < 8.0 {
+					severity = "WARNING"
+					description = "Warning: The door was left open."
+				}
+
+				// 15 mins CRITICAL notification
 				if minutesUnlocked >= 15.0 && minutesUnlocked < 16.0 {
-					engine.triggerDoorCritical(state.DeviceID)
-				} else if minutesUnlocked >= 7.0 && minutesUnlocked < 8.0 {
-					engine.triggerDoorWarning(state.DeviceID)
-				} else if minutesUnlocked >= 45.0 && int(minutesUnlocked)%30 == 0 {
-					// reminder loop: hits at 45m, 75m, 105m, etc.
-					engine.triggerDoorReminder(state.DeviceID)
+					severity = "CRITICAL"
+					description = "Critical: The door has been open for 15 minutes. Please secure it."
+				}
+
+				if severity != "" {
+					wg.Add(1)
+
+					go func(deviceID, deviceType, sev, desc string) {
+						defer wg.Done()
+						engine.triggerDoorAlert(ctx, deviceID, deviceType, sev, desc)
+					}(state.DeviceID, state.Type, severity, description)
 				}
 			}
 		}
 	}
+	wg.Wait()
 }
 
-func (engine *AlertEngine) triggerDoorWarning(deviceID string) {
-	//save WARNING to database
-	err := engine.alertStore.SaveAlert(context.Background(), models.Alert{
+func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, deviceID string, deviceType string, severity string, description string) {
+
+	err := engine.alertStore.SaveAlert(ctx, models.Alert{
 		DeviceID:  deviceID,
-		Type:      "door-actuator",
-		Severity:  "WARNING",
+		Type:      deviceType, 
+		Severity:  severity,
 		Timestamp: time.Now().Unix(),
 		Payload: map[string]interface{}{
-			"description": "Door left open for > 7 mins",
+			"description": description,
 		},
 	})
 
 	if err == nil {
-		slog.Warn("WARNING: Door open for 7 minutes", "device_id", deviceID)
-		engine.notifier.SendPushNotification(deviceID, "Warning", "Door left open > 7 mins")
+		slog.Warn("Door Security Event Logged", "device_id", deviceID, "severity", severity)
+		
+		// send notification to app
+		engine.notifier.SendPushNotification(deviceID, severity, description)
 	} else {
-		slog.Error("failed to save door warning to db", "error", err)
+		slog.Error("failed to save door alert to db", "error", err)
 	}
-}
-
-func (engine *AlertEngine) triggerDoorCritical(deviceID string) {
-	//save CRITICAL to db
-	err := engine.alertStore.SaveAlert(context.Background(), models.Alert{
-		DeviceID:  deviceID,
-		Type:      "door-actuator",
-		Severity:  "CRITICAL",
-		Timestamp: time.Now().Unix(),
-		Payload: map[string]interface{}{
-			"description": "Door left open for > 15 mins",
-		},
-	})
-
-	if err == nil {
-		slog.Error("CRITICAL: Door open for 15 minutes!", "device_id", deviceID)
-		engine.notifier.SendPushNotification(deviceID, "CRITICAL", "Door left open > 15 mins!")
-	} else {
-		slog.Error("failed to save door critical alert to db", "error", err)
-	}
-}
-
-func (engine *AlertEngine) triggerDoorReminder(deviceID string) {
-	slog.Warn("REMINDER: Door is STILL open!", "device_id", deviceID)
-	engine.notifier.SendPushNotification(deviceID, "REMINDER", "Your door is still open!")
 }
