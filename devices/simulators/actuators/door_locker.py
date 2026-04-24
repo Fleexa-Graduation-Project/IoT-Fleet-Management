@@ -23,6 +23,7 @@ class DoorLocker(BaseDevice):
         self.last_unlock_time = None
         self.state = {
             "lock_state": self.lock_state.value,
+            "open": False,
             "battery_level": self.battery_level,
             "is_jammed": False,
             "lock_attempts": 0,
@@ -63,8 +64,10 @@ class DoorLocker(BaseDevice):
     def generate_telemetry(self) -> Dict[str, Any]:
         self._drain_battery()
         self._check_jam()
+        is_open = (self.lock_state == LockStatus.UNLOCKED)
         self.state.update({
             "lock_state": self.lock_state.value,
+            "open": is_open,
             "battery_level": self.battery_level,
             "is_jammed": self.is_jammed,
             "lock_attempts": self.lock_attempts,
@@ -73,6 +76,7 @@ class DoorLocker(BaseDevice):
         return {
             "sensor_type": "door_locker",
             "lock_state": self.lock_state.value,
+            "open": is_open,
             "battery_level": self.battery_level,
             "is_jammed": self.is_jammed,
             "lock_attempts": self.lock_attempts,
