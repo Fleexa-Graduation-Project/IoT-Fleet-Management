@@ -4,7 +4,7 @@ resource "aws_iot_thing_type" "fleet_device" {
 
   properties {
     searchable_attributes = ["deviceType", "location", "version"]
-    description = "IoT Fleet Device Type for smart home sensors"
+    description           = "IoT Fleet Device Type for smart home sensors"
   }
 }
 

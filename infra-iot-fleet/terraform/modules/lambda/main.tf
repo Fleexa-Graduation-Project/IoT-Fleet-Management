@@ -26,12 +26,12 @@ resource "aws_iam_role_policy" "lambda_custom_policy" {
 }
 
 resource "aws_lambda_function" "this" {
-  function_name    = var.function_name
-  role             = aws_iam_role.lambda_exec.arn
-  handler          = var.handler
-  runtime          = var.runtime
-  architectures    = [var.architecture]
-  
+  function_name = var.function_name
+  role          = aws_iam_role.lambda_exec.arn
+  handler       = var.handler
+  runtime       = var.runtime
+  architectures = [var.architecture]
+
   filename         = var.lambda_zip_path
   source_code_hash = filebase64sha256(var.lambda_zip_path)
 
