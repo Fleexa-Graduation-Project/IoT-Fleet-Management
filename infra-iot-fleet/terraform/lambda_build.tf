@@ -42,7 +42,8 @@ module "iot_ingestion_lambda" {
   # explicitly define lambda name for AWS as requested
   function_name = "processing_main_lambda"
 
-  lambda_zip_path = data.archive_file.lambda_zip.output_path
+  lambda_zip_path  = data.archive_file.lambda_zip.output_path
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
   custom_policy_json = data.aws_iam_policy_document.iot_ingestion_policy.json
 

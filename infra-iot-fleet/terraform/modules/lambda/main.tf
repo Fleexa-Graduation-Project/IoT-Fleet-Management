@@ -33,7 +33,7 @@ resource "aws_lambda_function" "this" {
   architectures = [var.architecture]
 
   filename         = var.lambda_zip_path
-  source_code_hash = filebase64sha256(var.lambda_zip_path)
+  source_code_hash = var.source_code_hash != null ? var.source_code_hash : try(filebase64sha256(var.lambda_zip_path), null)
 
   dynamic "environment" {
     for_each = length(keys(var.environment_variables)) > 0 ? [1] : []
