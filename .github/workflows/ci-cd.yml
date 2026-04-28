@@ -214,8 +214,7 @@ jobs:
           FUNCS=$(aws lambda list-functions --region us-east-1 --query 'Functions[*].FunctionName' --output text)
           echo "Found functions: $FUNCS"
           echo "$FUNCS" | grep -q "processing_main_lambda" || (echo "Function processing_main_lambda missing!" && exit 1)
-          echo "$FUNCS" | grep -q "iot-fleet-dev-iot-ingestion" || (echo "Function iot-fleet-dev-iot-ingestion missing!" && exit 1)
-
+          echo "$FUNCS" | grep -q "iot-fleet-dev-api-service" || (echo "Function iot-fleet-dev-api-service missing!" && exit 1)
       - name: Verify IoT Things exist
         run: |
           aws iot list-things --region us-east-1 \
