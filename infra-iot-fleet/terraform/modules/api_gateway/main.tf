@@ -4,14 +4,14 @@ resource "null_resource" "build_api_lambda" {
     always_run = timestamp()
   }
   provisioner "local-exec" {
-    command = "cd ${path.module}/../../../backend && GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o bootstrap-api cmd/api-service/main.go"
+    command = "cd ${path.root}/../../backend && GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o bootstrap-api cmd/api-service/main.go"
   }
 }
 
 data "archive_file" "api_lambda_zip" {
   type        = "zip"
-  source_file = "${path.module}/../../../backend/bootstrap-api"
-  output_path = "${path.module}/../../../backend/api-service.zip"
+  source_file = "${path.root}/../../backend/bootstrap-api"
+  output_path = "${path.root}/../../backend/api-service.zip"
 
   depends_on = [null_resource.build_api_lambda]
 }
