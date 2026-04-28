@@ -38,7 +38,7 @@ class DeviceConfig:
     client_key: str                         # Path to client private key
     mqtt_broker: str = "iot.us-east-1.amazonaws.com"
     mqtt_port: int = 8883
-    publish_interval: int = 5               # seconds between publishes
+    publish_interval: int = 60               # seconds between publishes
     
 #------------------------------------------------------    
     
