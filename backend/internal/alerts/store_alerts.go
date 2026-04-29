@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+	"github.com/google/uuid"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
@@ -38,17 +39,19 @@ func NewAlertStore() (*AlertStore, error) {
 }
 
 func (store *AlertStore) SaveAlert(ctx context.Context, alert models.Alert) error {
-	if alert.ExpiresAt == 0 {
-		alert.ExpiresAt = time.Now().Add(30 * 24 * time.Hour).Unix()
-	}
+        if alert.AlertID == "" {
+                alert.AlertID = uuid.NewString()
+        }
+        if alert.ExpiresAt == 0 {
+                alert.ExpiresAt = time.Now().Add(30 * 24 * time.Hour).Unix()
+        }
 
-	item, err := attributevalue.MarshalMap(alert)
-	if err != nil {
-		return fmt.Errorf("failed to marshal alert: %w", err)
-	}
+        item, err := attributevalue.MarshalMap(alert)
+        if err != nil {
+                return fmt.Errorf("failed to marshal alert: %w", err)
+        }
 
-	input := &dynamodb.PutItemInput{
-		TableName: aws.String(store.TableName),
+        input := &dynamodb.PutItemInput{
 		Item:      item,
 	}
 
@@ -61,8 +64,7 @@ func (store *AlertStore) SaveAlert(ctx context.Context, alert models.Alert) erro
 }
 
 
-func (store *AlertStore) GetAlertsBySeverity(ctx context.Context, severity string, limit int32,
-	) ([]models.Alert, error) {
+func (store *AlertStore) GetAlertsBySeverity(ctx context.Context, severity string, limit int32) ([]models.Alert, error) {
 
 	const defaultLimit int32 = 20
 	if limit <= 0 {

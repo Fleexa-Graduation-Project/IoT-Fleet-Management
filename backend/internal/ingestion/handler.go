@@ -132,6 +132,8 @@ func (service *Service) handleAlert(ctx context.Context, deviceID string, envelo
 		Payload:   envelope.Payload,
 	}
 
+	alert.GenerateID()
+
 	if err := service.AlertStore.SaveAlert(ctx, alert); err != nil {
 		return err
 	}
