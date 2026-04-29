@@ -23,6 +23,12 @@ var (
 
 func init() {
 
+	var engine *rules.AlertEngine
+	engine, err = rules.NewAlertEngine(alertStore, log)
+	if err != nil {
+    panic(fmt.Errorf("failed to init alert engine: %w", err))
+	}
+
 	log = logger.InitLogger()
 	log.Info("lambda function-> cold Start...")
 
@@ -59,6 +65,7 @@ func main() {
 		TelemetryStore: telemetryStore,
 		AlertStore:     alertStore,
 		StateStore:     stateStore,
+		Engine:         engine,
 	}
 
 	lambda.Start(service.HandleRequest)
