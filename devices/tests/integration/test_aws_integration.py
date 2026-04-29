@@ -206,8 +206,11 @@ class TestLambdaDirectInvocation:
             Payload=json.dumps(payload).encode()
         )
         
-        response_payload = json.loads(resp['Payload'].read().decode('utf-8'))
-        if "errorMessage" in response_payload:
+        raw = resp['Payload'].read().decode('utf-8')
+        response_payload = json.loads(raw) if raw else None
+
+        # Lambda returns null body on success — only fail if there's an actual error
+        if response_payload and "errorMessage" in response_payload:
             pytest.fail(f"Lambda Error: {response_payload}")
 
         assert resp["StatusCode"] == 200
