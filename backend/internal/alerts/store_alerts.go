@@ -52,6 +52,7 @@ func (store *AlertStore) SaveAlert(ctx context.Context, alert models.Alert) erro
         }
 
         input := &dynamodb.PutItemInput{
+		TableName: aws.String(store.TableName),
 		Item:      item,
 	}
 
