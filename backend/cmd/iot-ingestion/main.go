@@ -6,10 +6,10 @@ import (
 	"log/slog"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/ingestion"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/ingestion"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
 )
@@ -22,13 +22,6 @@ var (
 )
 
 func init() {
-
-	var engine *rules.AlertEngine
-	engine, err = rules.NewAlertEngine(alertStore, log)
-	if err != nil {
-    panic(fmt.Errorf("failed to init alert engine: %w", err))
-	}
-
 	log = logger.InitLogger()
 	log.Info("lambda function-> cold Start...")
 
@@ -55,17 +48,14 @@ func init() {
 	}
 
 	log.Info("iot ingestion -> Cold Start Completed. Stores Ready.")
-
 }
 
 func main() {
-
 	service := &ingestion.Service{
 		Logger:         log,
 		TelemetryStore: telemetryStore,
 		AlertStore:     alertStore,
 		StateStore:     stateStore,
-		Engine:         engine,
 	}
 
 	lambda.Start(service.HandleRequest)
