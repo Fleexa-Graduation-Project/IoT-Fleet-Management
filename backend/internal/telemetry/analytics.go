@@ -516,3 +516,43 @@ func CalculateEnergy(acUsage []ChartPoint) []ChartPoint {
 
 	return energyChart
 }
+
+
+//takes an array of daily ChartPoints and averages them into 4 weeks.
+func ChunkIntoWeeks(dailyData []ChartPoint) []ChartPoint {
+	if len(dailyData) == 0 {
+		return []ChartPoint{}
+	}
+
+	weeklySums := make([]float64, 4)
+	weeklyCounts := make([]int, 4)
+
+	for i, point := range dailyData {
+		// Figure out which week index (0, 1, 2, or 3) this day belongs to
+		weekIndex := i / 7
+		if weekIndex > 3 {
+			weekIndex = 3 // Force days 29, 30, 31 into the final week
+		}
+
+		weeklySums[weekIndex] += point.Value
+		weeklyCounts[weekIndex]++
+	}
+
+	var weeklyChart []ChartPoint
+	for i := 0; i < 4; i++ {
+		if weeklyCounts[i] > 0 {
+			avg := weeklySums[i] / float64(weeklyCounts[i])
+			weeklyChart = append(weeklyChart, ChartPoint{
+				Label: fmt.Sprintf("Week %d", i+1),
+				Value: math.Round(avg*10) / 10,
+			})
+		} else {
+			weeklyChart = append(weeklyChart, ChartPoint{
+				Label: fmt.Sprintf("Week %d", i+1),
+				Value: 0.0,
+			})
+		}
+	}
+
+	return weeklyChart
+}

@@ -7,6 +7,7 @@ import (
     "fmt"
 	"sort"
     "context"
+	"sync"
 	
 
     "github.com/Fleexa-Graduation-Project/Backend/internal/devices"
@@ -256,6 +257,55 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 
     context.JSON(http.StatusOK, state)
 }
+//from s3
+func (handler *DeviceHandler) getMonthlyData(ctx context.Context, deviceID string) []telemetry.ChartPoint {
+	now := time.Now()
+	thirtyDaysAgo := now.AddDate(0, 0, -30)
+
+	currentMonthStr := now.Format("2006-01")
+	previousMonthStr := thirtyDaysAgo.Format("2006-01")
+
+	currentS3Key := fmt.Sprintf("processed-charts/%s/%s.json", deviceID, currentMonthStr)
+	previousS3Key := fmt.Sprintf("processed-charts/%s/%s.json", deviceID, previousMonthStr)
+
+	var currData, prevData []telemetry.ChartPoint
+	var wg sync.WaitGroup
+
+	// Fetch current month
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		data, err := handler.S3Fetcher.GetMonthlyChart(ctx, currentS3Key)
+		if err == nil {
+			currData = data
+		}
+	}()
+
+	// If we crossed a month boundary (e.g., today is May 5, start date is Apr 5), fetch previous month too
+	if currentMonthStr != previousMonthStr {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			data, err := handler.S3Fetcher.GetMonthlyChart(ctx, previousS3Key)
+			if err == nil {
+				prevData = data
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// Merge oldest first, then newest
+	mergedData := append(prevData, currData...)
+
+	// Slice off just the last 30 days
+	if len(mergedData) > 30 {
+		mergedData = mergedData[len(mergedData)-30:]
+	}
+
+	return mergedData
+}
+
 
 // handling GET /devices/:id/telemetry?period=...&metric=...
 func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
@@ -306,23 +356,22 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 			}
 		}
 
-    } else {
+   } else {
         response["source"] = "S3 processed data"
-		if period == "1m" {
-            currentMonth := time.Now().Format("2006-01")
-            s3Key := fmt.Sprintf("processed-charts/%s/%s.json", deviceID, currentMonth)
-            s3Data, err := handler.S3Fetcher.GetMonthlyChart(context.Request.Context(), s3Key)  //download json file from s3        
-            if err != nil {
-                slog.Warn("failed to fetch monthly S3 chart", "device_id", deviceID, "error", err)
-                response["data"] = []telemetry.ChartPoint{} //to not cause app crash return an empty array
+        if period == "1m" {
+            //get exactly 30 days from S3
+            lastMonthData := handler.getMonthlyData(context.Request.Context(), deviceID)
+            
+            if len(lastMonthData) == 0 {
+                response["data"] = []telemetry.ChartPoint{}
             } else {
-                response["data"] = s3Data // The pre-calculated array from Python!
+                //compress those 30 days into 4 weekly points
+                response["data"] = telemetry.ChunkIntoWeeks(lastMonthData) 
             }
         } else {
              response["data"] = []telemetry.ChartPoint{}
         }
-       
-}
+    }
 
     context.JSON(http.StatusOK, response)
 }
