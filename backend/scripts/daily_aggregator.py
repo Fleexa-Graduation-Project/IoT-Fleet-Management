@@ -1,7 +1,7 @@
 import boto3
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 # Initialize AWS Clients
@@ -22,12 +22,13 @@ def lambda_handler(event, context):
     print("Starting Nightly ETL Job...")
     
     # 1. Setup Time boundaries (Midnight to 11:59 PM today)
-    today = datetime.now()
-    month_key = today.strftime("%Y-%m") # e.g., "2026-04"
-    day_label = today.strftime("%b %d") # e.g., "Apr 28"
+    now = datetime.now()
+    yesterday = now - timedelta(days=1)
+    month_key = yesterday.strftime("%Y-%m") # e.g., "2026-04"
+    day_label = yesterday.strftime("%b %d") # e.g., "Apr 28"
     
-    start_ts = int(today.replace(hour=0, minute=0, second=0).timestamp())
-    end_ts = int(today.replace(hour=23, minute=59, second=59).timestamp())
+    start_time = int(yesterday.replace(hour=0, minute=0, second=0).timestamp())
+    end_time = int(yesterday.replace(hour=23, minute=59, second=59).timestamp())
 
     # 2. Get all active devices from the State Store
     state_table = dynamodb.Table(STATE_TABLE)
@@ -44,8 +45,8 @@ def lambda_handler(event, context):
             ExpressionAttributeNames={"#ts": "timestamp"},
             ExpressionAttributeValues={
                 ":did": device_id,
-                ":start": start_ts,
-                ":end": end_ts
+                ":start": start_time,
+                ":end": end_time
             }
         )
         
@@ -63,7 +64,7 @@ def lambda_handler(event, context):
         elif device_type == "ac-actuator":
             # Count how many records had "power_state: ON". Assuming 5-min intervals.
             on_count = sum(1 for item in items if item['payload'].get('power_state') == "ON")
-            daily_value = round((on_count * 5) / 60.0, 1) # convert to hours
+            daily_value = round((on_count * 1) / 60.0, 1) # convert to hours
         
         if daily_value is not None:
             # 5. Load: Save today's average to S3

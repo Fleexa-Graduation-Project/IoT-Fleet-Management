@@ -345,11 +345,7 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 		response["chart_max"] = chartMax
         
         if state.Type == "ac-actuator" {
-			if period == "7d" { 
-				// The Usage Bar Chart
-				response["usage_bar"] = telemetry.CalculateACUsage(rawData, now, period)
-			}
-			
+		
 			if period == "24h" {
 				totalSeconds := telemetry.CalculateACRunTime(rawData, now)
 				response["running_time"] = telemetry.FormatACTime(totalSeconds)
@@ -358,20 +354,25 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 
    } else {
         response["source"] = "S3 processed data"
-        if period == "1m" {
-            //get exactly 30 days from S3
-            lastMonthData := handler.getMonthlyData(context.Request.Context(), deviceID)
-            
-            if len(lastMonthData) == 0 {
-                response["data"] = []telemetry.ChartPoint{}
-            } else {
-                //compress those 30 days into 4 weekly points
-                response["data"] = telemetry.ChunkIntoWeeks(lastMonthData) 
-            }
-        } else {
-             response["data"] = []telemetry.ChartPoint{}
-        }
-    }
+		monthlyData := handler.getMonthlyData(context.Request.Context(), deviceID)
+       if period == "7d" {
+			// Slice the last 7 days from the S3 data
+			if len(monthlyData) > 7 {
+				response["data"] = monthlyData[len(monthlyData)-7:]
+			} else {
+				response["data"] = monthlyData
+			}
+		} else if period == "1m" {
+			if len(monthlyData) == 0 {
+				response["data"] = []telemetry.ChartPoint{}
+			} else {
+				// Compress those 30 days into 4 weekly points
+				response["data"] = telemetry.ChunkIntoWeeks(monthlyData) 
+			}
+		} else {
+			response["data"] = []telemetry.ChartPoint{}
+		}
+	}
 
     context.JSON(http.StatusOK, response)
 }
@@ -397,12 +398,7 @@ func (handler *DeviceHandler) GetDeviceAlerts(context *gin.Context) {
     context.JSON(http.StatusOK, gin.H{"data": alertList})
 }
 func isHotTier(period string) bool {
-    switch period {
-    case  "24h", "7d":
-        return true
-    default:
-        return false
-    }
+   return period == "24h"
 }
 
 //handling GET /system/overview
@@ -443,22 +439,25 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 	}
 
     //calculate Energy Consumption
-	acData, err := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), "ac-01", 0, cutoff)  //ac name may be changed later
-	if err != nil {
-		slog.Warn("Failed to fetch AC telemetry for energy chart", "error", err)
+	acMonthlyData := handler.getMonthlyData(context.Request.Context(), "ac-01") 
+	
+	var recentAC []telemetry.ChartPoint
+	if len(acMonthlyData) > 7 {
+		recentAC = acMonthlyData[len(acMonthlyData)-7:]
+	} else {
+		recentAC = acMonthlyData
 	}
 	
-	acUsage := telemetry.CalculateACUsage(acData, now, timeFilter)
-	energyData := telemetry.CalculateEnergy(acUsage)
+	// Convert the 7-day usage hours from S3 into kWh
+	energyData := telemetry.CalculateEnergy(recentAC)
 	energyMax := telemetry.GetChartMax(energyData)
 
-
 	context.JSON(http.StatusOK, gin.H{
-		"system_status":  systemStatus,
-		"devices_online": fmt.Sprintf("%d / %d", onlineCount, len(states)),
-		"alerts_chart":   alertsChart,
+		"system_status":      systemStatus,
+		"devices_online":     fmt.Sprintf("%d / %d", onlineCount, len(states)),
+		"alerts_chart":       alertsChart,
 		"alerts_chart_max":   alertsMax,
-        "energy_consumption": energyData,
+		"energy_consumption": energyData,
 		"energy_chart_max":   energyMax,
 	})
 }
