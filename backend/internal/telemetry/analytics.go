@@ -18,7 +18,54 @@ type ChartPoint struct {
 	Value float64 `json:"value"` // y-axis
 }
 
-// temp min max avg state
+type AlertChartPoint struct {
+	Label     string  `json:"label"`
+	Warnings  float64 `json:"warnings"`
+	Criticals float64 `json:"criticals"`
+}
+
+func SplitAlertChart(points []AlertChartPoint) map[string][]ChartPoint {
+	warnings  := make([]ChartPoint, 0, len(points))
+	criticals := make([]ChartPoint, 0, len(points))
+	for _, p := range points {
+		warnings  = append(warnings,  ChartPoint{Label: p.Label, Value: p.Warnings})
+		criticals = append(criticals, ChartPoint{Label: p.Label, Value: p.Criticals})
+	}
+	return map[string][]ChartPoint{"warning": warnings, "critical": criticals}
+}
+
+// uses sum (not average) to represent total alert count per week
+func ChunkAlertWeeks(dailyData []AlertChartPoint) []AlertChartPoint {
+	if len(dailyData) == 0 {
+		return []AlertChartPoint{}
+	}
+	warnSums := make([]float64, 4)
+	critSums := make([]float64, 4)
+	counts   := make([]int, 4)
+
+	for i, point := range dailyData {
+		idx := i / 7
+		if idx > 3 {
+			idx = 3
+		}
+		warnSums[idx]  += point.Warnings
+		critSums[idx]  += point.Criticals
+		counts[idx]++
+	}
+
+	result := make([]AlertChartPoint, 0, 4)
+	for i := 0; i < 4; i++ {
+		val := AlertChartPoint{Label: fmt.Sprintf("Week %d", i+1)}
+		if counts[i] > 0 {
+			val.Warnings  = warnSums[i]
+			val.Criticals = critSums[i]
+		}
+		result = append(result, val)
+	}
+	return result
+}
+
+// temp min-max-avg state
 type TempState struct {
 	Min     float64 `json:"min"`
 	Max     float64 `json:"max"`

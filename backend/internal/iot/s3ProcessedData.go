@@ -30,7 +30,7 @@ func NewS3Client(ctx context.Context, bucketName string) (*S3Client, error) {
 		bucket: bucketName,
 	}, nil
 }
- //downloads a JSON file from S3 and parses it
+// GetMonthlyChart downloads a JSON file from S3 and parses it as daily chart points.
 func (client *S3Client) GetMonthlyChart(ctx context.Context, key string) ([]telemetry.ChartPoint, error) {
 	result, err := client.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(client.bucket),
@@ -46,11 +46,32 @@ func (client *S3Client) GetMonthlyChart(ctx context.Context, key string) ([]tele
 		return nil, fmt.Errorf("failed to read s3 body: %v", err)
 	}
 
-	var chartData []telemetry.ChartPoint  
-    
+	var chartData []telemetry.ChartPoint
 	if err := json.Unmarshal(body, &chartData); err != nil {
 		return nil, fmt.Errorf("failed to parse s3 JSON: %v", err)
 	}
-
 	return chartData, nil
+}
+
+// GetMonthlyAlerts downloads a system-wide alert summary from S3 and parses it.
+func (client *S3Client) GetMonthlyAlerts(ctx context.Context, key string) ([]telemetry.AlertChartPoint, error) {
+	result, err := client.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(client.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get alerts from s3 (Key: %s): %v", key, err)
+	}
+	defer result.Body.Close()
+
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read s3 alerts body: %v", err)
+	}
+
+	var alertData []telemetry.AlertChartPoint
+	if err := json.Unmarshal(body, &alertData); err != nil {
+		return nil, fmt.Errorf("failed to parse s3 alerts JSON: %v", err)
+	}
+	return alertData, nil
 }
