@@ -25,9 +25,9 @@ type StateStore struct {
 }
 
 func NewStateStore() (*StateStore, error) {
-	tableName := os.Getenv("DYNAMODB_DEVICE_STATE_TABLE")
+	tableName := os.Getenv("STATE_TABLE")
 	if tableName == "" {
-		return nil, fmt.Errorf("DYNAMODB_DEVICE_STATE_TABLE is not set")
+		return nil, fmt.Errorf("STATE_TABLE environment variable is not set")
 	}
 
 	if db.Client == nil {
@@ -80,7 +80,7 @@ func (s *StateStore) UpdateFromTelemetry(ctx context.Context,tel models.Telemetr
 			":status":     &types.AttributeValueMemberS{Value: status},
 			":op_state":   &types.AttributeValueMemberS{Value: opState},
 			":health":     &types.AttributeValueMemberS{Value: health},
-			":payload":    payload, // This stores the raw map (temp, gas_level, etc.)
+			":payload":    payload, //stores payload map(temp, gas_level, etc.)
 			":last_seen":  &types.AttributeValueMemberN{Value: fmt.Sprint(tel.Timestamp)},
 			":updated_at": &types.AttributeValueMemberN{Value: fmt.Sprint(now)},
 		},

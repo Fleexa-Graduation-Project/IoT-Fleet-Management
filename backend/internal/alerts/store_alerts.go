@@ -22,9 +22,9 @@ type AlertStore struct {
 }
 
 func NewAlertStore() (*AlertStore, error) {
-	tableName := os.Getenv("DYNAMODB_ALERTS_TABLE")
+	tableName := os.Getenv("ALERTS_TABLE")
 	if tableName == "" {
-		return nil, fmt.Errorf("DYNAMODB_ALERTS_TABLE environment variable is not set")
+		return nil, fmt.Errorf("ALERTS_TABLE environment variable is not set")
 	}
 
 	if db.Client == nil {

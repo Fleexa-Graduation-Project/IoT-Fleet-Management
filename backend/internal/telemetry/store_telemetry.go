@@ -25,11 +25,11 @@ type TelemetryStore struct {
 	TableName string
 }
 
-// NewTelemetryStore initializes the store using the shared db.Client
+// initializing the store using the shared db.Client
 func NewTelemetryStore() (*TelemetryStore, error) {
-	tableName := os.Getenv("DYNAMODB_TABLE_NAME")
+	tableName := os.Getenv("TELEMETRY_TABLE")
 	if tableName == "" {
-		return nil, fmt.Errorf("DYNAMODB_TABLE_NAME environment variable is not set")
+		return nil, fmt.Errorf("TELEMETRY_TABLE environment variable is not set")
 	}
 
 	// We use the global 'db.Client' we created in pkg/db/client.go
