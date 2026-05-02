@@ -481,18 +481,34 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		alertsMax = criticalMax
 	}
 
-	//calculate Energy Consumption
-	acMonthlyData := handler.getMonthlyData(context.Request.Context(), "ac-actuator-01")
-
-	var recentAC []telemetry.ChartPoint
-	if len(acMonthlyData) > 7 {
-		recentAC = acMonthlyData[len(acMonthlyData)-7:]
+	//calculate energy consumption
+	var energyData []telemetry.ChartPoint
+	if isHotTier(timeFilter) {
+		acHistory, acErr := handler.TelemetryStore.GetTelemetryHistory(
+			context.Request.Context(), "ac-actuator-01", 0, cutoff,
+		)
+		if acErr != nil {
+			slog.Warn("failed to fetch AC telemetry for energy chart", "error", acErr)
+		}
+		totalSeconds := telemetry.CalculateACRunTime(acHistory, now)
+		todayHours := float64(totalSeconds) / 3600.0
+		energyData = telemetry.CalculateEnergy([]telemetry.ChartPoint{
+			{Label: "Today", Value: todayHours},
+		})
 	} else {
-		recentAC = acMonthlyData
+		acMonthlyData := handler.getMonthlyData(context.Request.Context(), "ac-actuator-01")
+		var acUsage []telemetry.ChartPoint
+		if timeFilter == "7d" {
+			if len(acMonthlyData) > 7 {
+				acUsage = acMonthlyData[len(acMonthlyData)-7:]
+			} else {
+				acUsage = acMonthlyData
+			}
+		} else { // 1m
+			acUsage = telemetry.ChunkIntoWeeks(acMonthlyData)
+		}
+		energyData = telemetry.CalculateEnergy(acUsage)
 	}
-
-	// Convert the 7-day usage hours from S3 into kWh
-	energyData := telemetry.CalculateEnergy(recentAC)
 	energyMax := telemetry.GetChartMax(energyData)
 
 	context.JSON(http.StatusOK, gin.H{
