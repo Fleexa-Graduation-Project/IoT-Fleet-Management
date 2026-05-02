@@ -22,7 +22,7 @@
         { "attributeName": "device_id", "attributeType": "S" },
         { "attributeName": "timestamp", "attributeType": "N" }
       ],
-      "timeToLive": { "enabled": true, "attributeName": "expires_at" }
+      "TTL": { "enabled": true, "attributeName": "expires_at" }
     },
     {
       "tableName": "Fleexa_Alerts",
@@ -48,7 +48,8 @@
           "projection": { "projectionType": "ALL" },
           "provisionedThroughput": { "readCapacity": 2, "writeCapacity": 2 }
         }
-      ]
+      ],
+      "TTL": { "enabled": true, "attributeName": "expires_at" }
     },
     {
       "tableName": "Fleexa_Commands",
@@ -72,7 +73,7 @@
           "provisionedThroughput": { "readCapacity": 2, "writeCapacity": 2 }
         }
       ],
-      "timeToLive": { "enabled": true, "attributeName": "expires_at" }
+      "TTL": { "enabled": true, "attributeName": "expires_at" }
     }
   ]
 }
