@@ -15,8 +15,9 @@ Retrieves high-level aggregated data for the Global Dashboard (system health, al
 - **Query Parameters (Optional):**
 
   - `period` (string): `24h`, `7d`, `1m`
+   **Note:** `7d` and `1m` alert data is pre-aggregated nightly. Today's alerts will appear tomorrow.
 
-- **Response (200 OK):**
+- **Response (200 OK) — `period=7d` (default):**
 
 ```json
 {
@@ -24,18 +25,18 @@ Retrieves high-level aggregated data for the Global Dashboard (system health, al
   "devices_online": "5 / 5",
   "alerts_chart": {
     "critical": [
-      { "label": "Mon", "value": 0 },
-      { "label": "Tue", "value": 2 }
+      { "label": "Apr 26", "value": 0 },
+      { "label": "Apr 27", "value": 2 }
     ],
     "warning": [
-      { "label": "Mon", "value": 3 },
-      { "label": "Tue", "value": 1 }
+      { "label": "Apr 26", "value": 3 },
+      { "label": "Apr 27", "value": 1 }
     ]
   },
-  "alerts_chart_max": 5.0,
+  "alerts_chart_max": 3.0,
   "energy_consumption": [
-    { "label": "Mon", "value": 12.4 },
-    { "label": "Tue", "value": 15.1 }
+    { "label": "Apr 26", "value": 12.4 },
+    { "label": "Apr 27", "value": 15.1 }
   ],
   "energy_chart_max": 15.1
 }
@@ -248,7 +249,7 @@ Retrieves historical data + analytics.
   - `period`: `24h`, `7d`, `1m`
   - `metric`: e.g. `temp`, `light_level`
 
-- **Response (200 OK):**
+- **Response (200 OK) — `period=24h`:**
 
 ```json
 {
@@ -262,6 +263,37 @@ Retrieves historical data + analytics.
   "chart_max": 29.0
 }
 ```
+
+- **Response (200 OK) — `period=7d`:**
+
+```json
+{
+  "device_id": "temp-sensor-01",
+  "period": "7d",
+  "source": "S3 processed data",
+  "data": [
+    { "label": "Apr 26", "value": 25.3 },
+    { "label": "Apr 27", "value": 26.1 }
+  ]
+}
+```
+
+- **Response (200 OK) — `period=1m`:**
+
+```json
+{
+  "device_id": "temp-sensor-01",
+  "period": "1m",
+  "source": "S3 processed data",
+  "data": [
+    { "label": "Week 1", "value": 24.8 },
+    { "label": "Week 2", "value": 25.3 },
+    { "label": "Week 3", "value": 26.0 },
+    { "label": "Week 4", "value": 25.7 }
+  ]
+}
+```
+
 - **Endpoint:** `GET /devices/light-sensor-01/telemetry?period=24h&metric=light_level`
 - **Response (200 OK):**
 ```json
