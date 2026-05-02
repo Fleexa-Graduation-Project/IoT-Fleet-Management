@@ -33,7 +33,7 @@
       "required": ["status"],
       "properties": {
         "status": { "type": "string", "minLength": 1 },
-        "severity": { "type": "string", "enum": ["LOW", "MEDIUM", "CRITICAL"] }
+        "severity": { "type": "string", "enum": ["WARNING", "CRITICAL"] }
       },
       "additionalProperties": true
     }
