@@ -59,13 +59,20 @@ if err != nil {
 	}
 	iotPublisher := iot.NewPublisher(cfg)
 
-//initializing the device holder
+	bucketName := os.Getenv("BUCKET_NAME")
+	s3Fetcher, err := iot.NewS3Client(context.Background(), bucketName)
+	if err != nil {
+		log.Error("failed to initialize S3Client", "error", err)
+		panic(err)
+	}
+
 	deviceHandler := &handlers.DeviceHandler{
 		StateStore:     stateStore,
 		TelemetryStore: telemetryStore,
 		AlertStore:     alertStore,
 		CommandStore:   commandStore,
 		IoTPublisher:   iotPublisher,
+		S3Fetcher:      s3Fetcher,
 	}
 
 	router := gin.Default()
