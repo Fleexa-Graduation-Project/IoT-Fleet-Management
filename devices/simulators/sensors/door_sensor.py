@@ -19,7 +19,7 @@ class DoorSensor(BaseDevice):
 
     def _check_and_publish_alerts(self):
         if self.open_duration >= 300:
-            self.publish_alert("DOOR_OPEN_TOO_LONG", "MEDIUM",
+            self.publish_alert("DOOR_OPEN_TOO_LONG", "WARNING",
                                {"duration_seconds": self.open_duration, "threshold": 300,
                                 "location": self.config.location})
         if self.intrusion_detected:

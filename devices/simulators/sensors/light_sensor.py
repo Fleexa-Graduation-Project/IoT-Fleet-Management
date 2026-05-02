@@ -23,10 +23,10 @@ class LightSensor(BaseDevice):
 
     def _check_and_publish_alerts(self):
         if self.light_level < 10:
-            self.publish_alert("COMPLETE_DARKNESS", "LOW",
+            self.publish_alert("COMPLETE_DARKNESS", "WARNING",
                                {"lux": self.light_level, "location": self.config.location})
         elif self.light_level > 900:
-            self.publish_alert("EXCESSIVE_BRIGHTNESS", "LOW",
+            self.publish_alert("EXCESSIVE_BRIGHTNESS", "WARNING",
                                {"lux": self.light_level, "threshold": 900})
 
     def generate_telemetry(self) -> Dict[str, Any]:
