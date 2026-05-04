@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"os"
+	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
+    "github.com/aws/aws-lambda-go/lambda"
 
 	"github.com/Fleexa-Graduation-Project/Backend/internal/api/handlers"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
@@ -95,14 +97,7 @@ if err != nil {
 	}
 	
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Info("Listening and serving HTTP on port: " + port)
-	if err := router.Run(":" + port); err != nil {
-		log.Error("Failed to start server", "error", err)
-		os.Exit(1)
-	}
+	log.Info("api-service -> stores ready, starting lambda handler...")
+	adapter := ginadapter.NewV2(router)
+	lambda.Start(adapter.ProxyWithContext)
 }
