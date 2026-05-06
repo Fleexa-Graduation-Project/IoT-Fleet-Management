@@ -34,8 +34,12 @@ func NewService(credentialsFile string) (*Service, error) {
 
 //sending a message to a specific device topic
 func (s *Service) SendPushNotification(deviceID string, title string, body string) {
-	// For now, we will send to an FCM topic based on the device ID.
-	// The Flutter app will subscribe to this topic (e.g., "door-actuator-01") to receive alerts.
+	if s == nil {
+		slog.Warn("notification service unavailable, skipping sending it", "device_id", deviceID)
+		return
+	}
+
+	// The Flutter app subscribes to an FCM topic matching the device_id to receive its alerts.
 	topic := deviceID
 
 	message := &messaging.Message{

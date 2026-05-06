@@ -151,6 +151,15 @@ func (service *Service) handleAlert(ctx context.Context, deviceID string, envelo
 		return err
 	}
 
+	service.Logger.Info("alert saved, sending notification to", "device_id", deviceID, "severity", severity, "type", envelope.Type)
+
+	title := fmt.Sprintf("%s — %s", severity, envelope.Type)
+	description, _ := envelope.Payload["description"].(string)
+	if description == "" {
+		description = fmt.Sprintf("%s alert triggered", envelope.Type)
+	}
+	service.Engine.Notifier().SendPushNotification(deviceID, title, description)
+
 	return service.StateStore.UpdateHeartbeat(ctx, deviceID)
 }
 
