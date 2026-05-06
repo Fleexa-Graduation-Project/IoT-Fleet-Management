@@ -111,6 +111,7 @@ if err != nil {
 		{
 			authRoutes.POST("/signup",          authHandler.SignUp)
 			authRoutes.POST("/signin",          authHandler.SignIn)
+			authRoutes.POST("/refresh",         authHandler.RefreshTokens)
 			authRoutes.POST("/forgot-password", authHandler.ForgotPassword)
 			authRoutes.POST("/reset-password",  authHandler.ResetPassword)
 

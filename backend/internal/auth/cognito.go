@@ -47,6 +47,10 @@ func (c *CognitoClient) SignUp(ctx context.Context, username, email, password st
 		if errors.As(err, &exists) {
 			return ErrEmailTaken
 		}
+		var weakPwd *types.InvalidPasswordException
+		if errors.As(err, &weakPwd) {
+			return ErrWeakPassword
+		}
 		return fmt.Errorf("SignUp: email=%s: %w", email, err)
 	}
 
@@ -105,6 +109,10 @@ func (c *CognitoClient) ChangePassword(ctx context.Context, accessToken, current
 		if errors.As(err, &notAuth) {
 			return ErrInvalidCredentials
 		}
+		var weakPwd *types.InvalidPasswordException
+		if errors.As(err, &weakPwd) {
+			return ErrWeakPassword
+		}
 		return fmt.Errorf("ChangePassword: %w", err)
 	}
 	return nil
@@ -135,9 +143,36 @@ func (c *CognitoClient) ResetPassword(ctx context.Context, email, code, newPassw
 		if errors.As(err, &codeMismatch) || errors.As(err, &expired) {
 			return ErrInvalidCode
 		}
+		var weakPwd *types.InvalidPasswordException
+		if errors.As(err, &weakPwd) {
+			return ErrWeakPassword
+		}
 		return fmt.Errorf("ResetPassword: email=%s: %w", email, err)
 	}
 	return nil
+}
+
+// RefreshTokens exchanges a refresh token for a new access token and ID token.
+func (c *CognitoClient) RefreshTokens(ctx context.Context, refreshToken string) (*AuthTokens, error) {
+	out, err := c.svc.InitiateAuth(ctx, &cognitosvc.InitiateAuthInput{
+		AuthFlow: types.AuthFlowTypeRefreshTokenAuth,
+		ClientId: aws.String(c.clientID),
+		AuthParameters: map[string]string{
+			"REFRESH_TOKEN": refreshToken,
+		},
+	})
+	if err != nil {
+		var notAuth *types.NotAuthorizedException
+		if errors.As(err, &notAuth) {
+			return nil, ErrInvalidCredentials
+		}
+		return nil, fmt.Errorf("RefreshTokens: %w", err)
+	}
+	return &AuthTokens{
+		AccessToken: aws.ToString(out.AuthenticationResult.AccessToken),
+		IDToken:     aws.ToString(out.AuthenticationResult.IdToken),
+		// Cognito does not rotate the refresh token on refresh — omit it
+	}, nil
 }
 
 func (c *CognitoClient) GetUser(ctx context.Context, accessToken string) (*UserInfo, error) {
@@ -164,7 +199,7 @@ func (c *CognitoClient) GetUser(ctx context.Context, accessToken string) (*UserI
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	IDToken      string `json:"id_token"`
-	RefreshToken string `json:"refresh_token"`
+	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
 type UserInfo struct {
@@ -177,4 +212,5 @@ var (
 	ErrEmailTaken         = errors.New("email already registered")
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrInvalidCode        = errors.New("invalid or expired verification code")
+	ErrWeakPassword       = errors.New("password does not meet requirements")
 )

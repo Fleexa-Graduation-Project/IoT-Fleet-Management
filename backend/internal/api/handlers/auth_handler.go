@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -31,6 +32,10 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 	err := h.Cognito.SignUp(c.Request.Context(), req.Username, strings.ToLower(req.Email), req.Password)
 	if err == auth.ErrEmailTaken {
 		c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
+		return
+	}
+	if err == auth.ErrWeakPassword {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "password must include uppercase, lowercase, number, and special character"})
 		return
 	}
 	if err != nil {
@@ -82,6 +87,10 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "current password is incorrect"})
 		return
 	}
+	if err == auth.ErrWeakPassword {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "password must include uppercase, lowercase, number, and special character"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to change password"})
 		return
@@ -98,7 +107,9 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	_ = h.Cognito.ForgotPassword(c.Request.Context(), strings.ToLower(req.Email))
+	if err := h.Cognito.ForgotPassword(c.Request.Context(), strings.ToLower(req.Email)); err != nil {
+		slog.Warn("ForgotPassword: Cognito call failed", "error", err)
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "if this email is registered, a verification code has been sent"})
 }
 
@@ -123,11 +134,36 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or expired verification code"})
 		return
 	}
+	if err == auth.ErrWeakPassword {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "password must include uppercase, lowercase, number, and special character"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reset password"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
+}
+
+// POST /api/v1/auth/refresh
+func (h *AuthHandler) RefreshTokens(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	tokens, err := h.Cognito.RefreshTokens(c.Request.Context(), req.RefreshToken)
+	if err == auth.ErrInvalidCredentials {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "refresh token is invalid or expired, please sign in again"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to refresh tokens"})
+		return
+	}
+	c.JSON(http.StatusOK, tokens)
 }
 
 // GET /api/v1/auth/profile
