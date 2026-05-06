@@ -158,7 +158,7 @@ func (service *Service) handleAlert(ctx context.Context, deviceID string, envelo
 	if description == "" {
 		description = fmt.Sprintf("%s alert triggered", envelope.Type)
 	}
-	service.Engine.Notifier().SendPushNotification(deviceID, title, description)
+	service.Engine.Notifier().SendPushNotification(deviceID, severity, title, description)
 
 	return service.StateStore.UpdateHeartbeat(ctx, deviceID)
 }

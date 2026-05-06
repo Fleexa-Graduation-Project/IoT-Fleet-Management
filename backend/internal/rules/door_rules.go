@@ -102,7 +102,7 @@ func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, deviceID string
 		slog.Warn("Door Security Event Logged", "device_id", deviceID, "severity", severity)
 		
 		// send notification to app
-		engine.notifier.SendPushNotification(deviceID, severity, description)
+		engine.notifier.SendPushNotification(deviceID, severity, "Door Alert", description)
 	} else {
 		slog.Error("failed to save door alert to db", "error", err)
 	}

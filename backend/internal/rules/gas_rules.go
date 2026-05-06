@@ -47,7 +47,7 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, deviceID string, paylo
 		} else {
 			slog.Error("gas alert triggered!", "device_id", deviceID, "severity", severity)
 			// send push notification
-			engine.notifier.SendPushNotification(deviceID, "Gas Alert", description)
+			engine.notifier.SendPushNotification(deviceID, severity, "Gas Alert", description)
 		}
 	}
 }

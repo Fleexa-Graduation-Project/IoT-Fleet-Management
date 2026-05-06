@@ -32,20 +32,23 @@ func NewService(credentialsFile string) (*Service, error) {
 	}, nil
 }
 
-//sending a message to a specific device topic
-func (s *Service) SendPushNotification(deviceID string, title string, body string) {
+//sending a message to a severity-specific topic(filter by WARNING or CRITICAL)
+func (s *Service) SendPushNotification(deviceID string, severity string, title string, body string) {
 	if s == nil {
 		slog.Warn("notification service unavailable, skipping sending it", "device_id", deviceID)
 		return
 	}
 
-	// The Flutter app subscribes to an FCM topic matching the device_id to receive its alerts.
-	topic := deviceID
+	// filter notifications based on user preference.
+	topic := deviceID + "_" + severity
 
 	message := &messaging.Message{
 		Notification: &messaging.Notification{
 			Title: title,
 			Body:  body,
+		},
+		Data: map[string]string{
+			"severity": severity,
 		},
 		Topic: topic,
 	}
