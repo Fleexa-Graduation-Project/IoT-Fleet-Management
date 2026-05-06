@@ -12,7 +12,10 @@ import json
 import time
 import pytest
 import boto3
+import requests
+import paho.mqtt.client as mqtt
 from boto3.dynamodb.conditions import Key
+
 
 # ── Config — matches exact Terraform variable defaults ─────────────────────
 AWS_REGION         = os.environ.get("AWS_REGION", "us-east-1")
@@ -26,7 +29,8 @@ MQTT_ENDPOINT      = os.environ.get("MQTT_ENDPOINT",      "")
 CA_CERT            = os.environ.get("CA_CERT_PATH",       "certs/AmazonRootCA1.pem")
 CLIENT_CERT        = os.environ.get("CLIENT_CERT_PATH",   "")
 CLIENT_KEY         = os.environ.get("CLIENT_KEY_PATH",    "")
-TEST_DEVICE_ID     = "integration-test-device-01"
+TEST_DEVICE_ID     = os.environ.get("TEST_DEVICE_ID",     "temp-sensor-01")
+API_ENDPOINT       = os.environ.get("API_ENDPOINT",       "")
 
 # IoT rule name pattern: project_name with dashes replaced → iot_fleet
 TELEMETRY_RULE_NAME = "iot_fleet_telemetry_processor"
@@ -118,7 +122,7 @@ class TestInfrastructureExists:
             f"CA certificate exists but is NOT ACTIVE — status: {certs[0]['status']}"
 
 
-# ── 2. Lambda Direct Invocation Test ──────────────────────────────────────
+# ── 2. Lambda Direct Invocation Tests ─────────────────────────────────────
 # Invokes the Lambda directly (bypasses MQTT) — no certs needed.
 # Verifies the full Lambda → DynamoDB write chain works.
 
@@ -138,29 +142,26 @@ class TestLambdaDirectInvocation:
                 "timestamp": timestamp,
                 "type":      "temp-sensor",
                 "payload": {
-                    "temp": 24.5,
-                    "humidity":    58,
-                    "unit":        "celsius"
+                    "temp":     24.5,
+                    "humidity": 58,
+                    "unit":     "celsius"
                 }
             }
         }
 
         resp = lambda_client.invoke(
             FunctionName=LAMBDA_NAME,
-            InvocationType="RequestResponse",   # synchronous
+            InvocationType="RequestResponse",
             Payload=json.dumps(payload).encode()
         )
 
-        # 1. Lambda must not crash
         assert resp["StatusCode"] == 200, \
             f"Lambda returned HTTP {resp['StatusCode']}"
 
-        # 2. No function error
         assert "FunctionError" not in resp, \
             f"Lambda threw error: {resp.get('FunctionError')} — " \
             f"payload: {resp['Payload'].read().decode()}"
 
-        # 3. Record must exist in DynamoDB within 3 seconds
         time.sleep(3)
         table = ddb.Table(TELEMETRY_TABLE)
         result = table.get_item(Key={
@@ -194,8 +195,8 @@ class TestLambdaDirectInvocation:
                 "type":      "temp-sensor",
                 "payload": {
                     "severity": "HIGH",
-                    "temp": 45.0,
-                    "unit":        "celsius"
+                    "temp":     45.0,
+                    "unit":     "celsius"
                 }
             }
         }
@@ -205,7 +206,7 @@ class TestLambdaDirectInvocation:
             InvocationType="RequestResponse",
             Payload=json.dumps(payload).encode()
         )
-        
+
         raw = resp['Payload'].read().decode('utf-8')
         response_payload = json.loads(raw) if raw else None
 
@@ -218,19 +219,18 @@ class TestLambdaDirectInvocation:
 
         time.sleep(3)
         table = ddb.Table(ALERTS_TABLE)
-        time.sleep(3) # Wait for dynamo index
+        time.sleep(3)  # Wait for DynamoDB index
         result = table.scan(
             FilterExpression=Key("device_id").eq(TEST_DEVICE_ID)
         )
         alerts = result.get("Items", [])
-        high_temp_alerts = alerts
-        assert len(high_temp_alerts) > 0, \
+        assert len(alerts) > 0, \
             f"Expected HIGH_TEMP alert in DynamoDB but found: {alerts}"
 
     def test_lambda_no_alert_on_normal_temp(self, lambda_client, ddb):
         """
         Invoke Lambda with normal temperature (22°C).
-        No new HIGH_TEMP alert should be written for this timestamp.
+        No new alert should be written for this timestamp.
         """
         timestamp = int(time.time()) + 2
         payload = {
@@ -241,7 +241,7 @@ class TestLambdaDirectInvocation:
                 "type":      "temp-sensor",
                 "payload": {
                     "temp": 22.0,
-                    "unit":        "celsius"
+                    "unit": "celsius"
                 }
             }
         }
@@ -263,7 +263,7 @@ class TestLambdaDirectInvocation:
 
 # ── 3. Full E2E MQTT Test ──────────────────────────────────────────────────
 # Requires cert files. Auto-skipped if certs are not present.
-# This is the true prod smoke test: device → MQTT → IoT Core → Rule → Lambda → DynamoDB
+# True prod smoke test: device → MQTT → IoT Core → Rule → Lambda → DynamoDB
 
 @pytest.mark.integration
 @pytest.mark.skipif(
@@ -273,38 +273,43 @@ class TestLambdaDirectInvocation:
 class TestEndToEndMQTTFlow:
 
     def test_mqtt_publish_reaches_dynamodb(self, ddb):
-        try:
-            import paho.mqtt.client as mqtt
-        except ImportError:
-            pytest.skip("paho-mqtt not installed — run: pip install paho-mqtt")
-
         timestamp = int(time.time())
         payload = {
             "device_id": TEST_DEVICE_ID,
             "timestamp": timestamp,
-            "type":      "sensor",
-            "payload":   {"temperature": 23.0, "humidity": 60, "unit": "celsius"}
+            "type":      "temp-sensor",
+            "payload": {
+                "temp":     23.0,
+                "humidity": 60,
+                "unit":     "celsius"
+            }
         }
 
-        connected = {"ok": False}
-        published = {"ok": False}
+        connected  = {"ok": False}
+        published  = {"ok": False}
 
-        def on_connect(client, userdata, flags, rc):
-            connected["ok"] = (rc == 0)
+        # ── Paho v2 callback signatures (no deprecation warnings) ──────────
+        def on_connect(client, userdata, flags, reason_code, properties):
+            connected["ok"] = (reason_code == 0)
 
-        def on_publish(client, userdata, mid):
+        def on_publish(client, userdata, mid, reason_code, properties):
             published["ok"] = True
 
-        client = mqtt.Client(client_id=TEST_DEVICE_ID, protocol=mqtt.MQTTv311)
+        client = mqtt.Client(
+            mqtt.CallbackAPIVersion.VERSION2,
+            client_id=TEST_DEVICE_ID,
+            protocol=mqtt.MQTTv311
+        )
         client.tls_set(
             ca_certs=CA_CERT,
             certfile=CLIENT_CERT,
             keyfile=CLIENT_KEY,
-            cert_reqs=ssl.CERT_REQUIRED,
-            tls_version=ssl.PROTOCOL_TLSv1_2
+            cert_reqs=ssl.CERT_REQUIRED
+            # tls_version omitted → auto-negotiates TLS 1.2/1.3
         )
         client.on_connect = on_connect
         client.on_publish = on_publish
+
         client.connect(MQTT_ENDPOINT, 8883, keepalive=10)
         client.loop_start()
         time.sleep(3)
@@ -328,3 +333,59 @@ class TestEndToEndMQTTFlow:
         assert "Item" in result, \
             f"MQTT published but record NOT in DynamoDB — " \
             f"check IoT Rule is enabled and Lambda has correct DynamoDB permissions"
+
+
+# ── 4. API Service Tests ───────────────────────────────────────────────────
+# Calls the real API Gateway → api-service Lambda → DynamoDB reads.
+# Requires data to already exist (run Lambda invocation tests first).
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not API_ENDPOINT,
+    reason="API_ENDPOINT not set — skipping API tests."
+)
+class TestAPIService:
+
+    def test_get_devices_returns_list(self):
+        """GET /devices must return a list with at least the test device."""
+        resp = requests.get(f"{API_ENDPOINT}/devices", timeout=10)
+        assert resp.status_code == 200, f"GET /devices failed: {resp.text}"
+        body = resp.json()
+        assert "data" in body, f"Missing 'data' key: {body}"
+        assert isinstance(body["data"], list), "Expected list"
+
+    def test_get_device_by_id(self):
+        """GET /devices/:id returns the integration test device state."""
+        resp = requests.get(f"{API_ENDPOINT}/devices/{TEST_DEVICE_ID}", timeout=10)
+        assert resp.status_code == 200, \
+            f"GET /devices/{TEST_DEVICE_ID} failed: {resp.text}"
+        body = resp.json()
+        assert body.get("device_id") == TEST_DEVICE_ID
+
+    def test_get_device_telemetry(self):
+        """GET /devices/:id/telemetry?period=24h returns chart data."""
+        resp = requests.get(
+            f"{API_ENDPOINT}/devices/{TEST_DEVICE_ID}/telemetry",
+            params={"period": "24h", "metric": "temp"},
+            timeout=10
+        )
+        assert resp.status_code == 200, f"Telemetry fetch failed: {resp.text}"
+        body = resp.json()
+        assert "data" in body
+
+    def test_get_device_alerts(self):
+        """GET /devices/:id/alerts returns alert list (may be empty)."""
+        resp = requests.get(
+            f"{API_ENDPOINT}/devices/{TEST_DEVICE_ID}/alerts", timeout=10
+        )
+        assert resp.status_code == 200, f"Alerts fetch failed: {resp.text}"
+        body = resp.json()
+        assert "data" in body
+
+    def test_get_system_overview(self):
+        """GET /system/overview returns system status and alerts chart."""
+        resp = requests.get(f"{API_ENDPOINT}/system/overview", timeout=10)
+        assert resp.status_code == 200, f"Overview failed: {resp.text}"
+        body = resp.json()
+        assert "system_status" in body
+        assert "devices_online" in body
