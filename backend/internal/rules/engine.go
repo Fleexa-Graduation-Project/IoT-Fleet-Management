@@ -20,3 +20,7 @@ func NewAlertEngine(alertStore *alerts.AlertStore, stateStore *devices.StateStor
 	}
 }
 
+func (e *AlertEngine) Notifier() *notifications.Service {
+	return e.notifier
+}
+
