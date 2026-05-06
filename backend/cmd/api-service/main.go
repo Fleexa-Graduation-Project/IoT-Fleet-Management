@@ -8,6 +8,7 @@ import (
     "github.com/aws/aws-lambda-go/lambda"
 
 	"github.com/Fleexa-Graduation-Project/Backend/internal/api/handlers"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/auth"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
@@ -15,7 +16,7 @@ import (
 	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/commands"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/iot"
-	
+
 	"github.com/aws/aws-sdk-go-v2/config"
 
 	"github.com/gin-gonic/gin"
@@ -61,6 +62,16 @@ if err != nil {
 	}
 	iotPublisher := iot.NewPublisher(cfg)
 
+	cognitoClient, err := auth.NewCognitoClient(cfg)
+	if err != nil {
+		log.Error("failed to initialize Cognito client", "error", err)
+		panic(err)
+	}
+	if err := auth.InitJWKS(context.Background()); err != nil {
+		log.Error("failed to initialize JWKS for token validation", "error", err)
+		panic(err)
+	}
+
 	bucketName := os.Getenv("BUCKET_NAME")
 	s3Fetcher, err := iot.NewS3Client(context.Background(), bucketName)
 	if err != nil {
@@ -76,6 +87,8 @@ if err != nil {
 		IoTPublisher:   iotPublisher,
 		S3Fetcher:      s3Fetcher,
 	}
+
+	authHandler := &handlers.AuthHandler{Cognito: cognitoClient}
 
 	router := gin.Default()
 
@@ -93,7 +106,20 @@ if err != nil {
 		v1.GET("/devices/:id/alerts", deviceHandler.GetDeviceAlerts)
 		v1.GET("/system/overview", deviceHandler.GetSystemOverview)
 		v1.POST("/devices/:id/commands", deviceHandler.SendCommand)
-		
+
+		authRoutes := v1.Group("/auth")
+		{
+			authRoutes.POST("/signup",          authHandler.SignUp)
+			authRoutes.POST("/signin",          authHandler.SignIn)
+			authRoutes.POST("/forgot-password", authHandler.ForgotPassword)
+			authRoutes.POST("/reset-password",  authHandler.ResetPassword)
+
+			protected := authRoutes.Group("", auth.Middleware())
+			{
+				protected.POST("/change-password", authHandler.ChangePassword)
+				protected.GET("/profile",          authHandler.GetProfile)
+			}
+		}
 	}
 	
 
