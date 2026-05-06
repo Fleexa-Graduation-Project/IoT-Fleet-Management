@@ -5,7 +5,9 @@ import (
     "net/http"
     "time"
     "fmt"
+	"sort"
     "context"
+	
 
     "github.com/Fleexa-Graduation-Project/Backend/internal/devices"
     "github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
@@ -21,7 +23,8 @@ type DeviceHandler struct {
     TelemetryStore *telemetry.TelemetryStore
     AlertStore     *alerts.AlertStore
     CommandStore   *commands.CommandStore 
-	IoTPublisher   *iot.Publisher
+    IoTPublisher   *iot.Publisher
+    S3Fetcher      *iot.S3Client
 }
 
 type SendCommandRequest struct {
@@ -41,6 +44,7 @@ func addLightStatus(payload map[string]interface{}, operationalState string) {
     }
 }
 
+/*
 func addTempStats(response gin.H, data []models.Telemetry, metric, deviceID string, now int64) {
     stats, err := telemetry.CalculateTempState(data, metric, now)
     if err != nil {
@@ -50,6 +54,8 @@ func addTempStats(response gin.H, data []models.Telemetry, metric, deviceID stri
     response["max"] = stats.Max
     response["average"] = stats.Average
 }
+	*/
+
 
 // handling GET /devices
 func (handler *DeviceHandler) GetDevices(context *gin.Context) {
@@ -66,6 +72,23 @@ func (handler *DeviceHandler) GetDevices(context *gin.Context) {
         }
     }
     context.JSON(http.StatusOK, gin.H{"data": states})
+}
+//GET /alerts (notifications for all devices)
+func (handler *DeviceHandler) GetSortedAlerts(context *gin.Context) {
+	now := time.Now().Unix()
+	cutoff := now - (7 * 86400) 
+
+	alertList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), cutoff)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch global alerts"})
+		return
+	}
+
+	sort.Slice(alertList, func(i, j int) bool {
+		return alertList[i].Timestamp > alertList[j].Timestamp
+	})
+
+	context.JSON(http.StatusOK, gin.H{"data": alertList})
 }
 
 // showing last 5 Recent Events with its time - the Last Activity time - warning and alerts based on unlock time
@@ -94,10 +117,10 @@ func showDoorStats(payload map[string]interface{}, history []models.Telemetry, n
 	}
 }
 
-// getting normal state in door insights
-func addDoorInsights(response gin.H, data []models.Telemetry, state *models.DeviceState, now int64) {
+//getting normal state in door insights
+func addDoorInsights(payload map[string]interface{}, data []models.Telemetry, state *models.DeviceState, now int64) {
 	avgUnlock := telemetry.CalculateAvgUnlock(data, now)
-	response["average_unlock_minutes"] = avgUnlock
+	payload["average_unlock"] = avgUnlock
 
 	
 	normalDuration := 15.0 
@@ -107,9 +130,9 @@ func addDoorInsights(response gin.H, data []models.Telemetry, state *models.Devi
 	}
 	
 	if avgUnlock > normalDuration {
-		response["unlock_duration_status"] = "Above Normal"
+		payload["unlock_duration_status"] = "Above Normal"
 	} else {
-		response["unlock_duration_status"] = "Normal"
+		payload["unlock_duration_status"] = "Normal"
 	}
 }
 
@@ -188,6 +211,13 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 			slog.Warn("failed to fetch recent door history", "device_id", deviceID, "error", dbErr)
 		}
 		showDoorStats(state.Payload, recentHistory, now)
+		cutoff24h := now - 86400
+		history24h, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 0, cutoff24h)
+		if dbErr != nil {
+			slog.Warn("failed to fetch 24h door history", "device_id", deviceID, "error", dbErr)
+		} else {
+			addDoorInsights(state.Payload, history24h, state, now)
+		}
 	}
     if state.Type == "ac-actuator" {
 		now := time.Now().Unix()
@@ -200,6 +230,29 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 	
 		handler.showACStats(context.Request.Context(), state.Payload, now)
 	}
+	if state.Type == "temp-sensor" {
+		now := time.Now().Unix()
+		cutoff24h := now - 86400
+		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 0, cutoff24h)
+		if dbErr != nil {
+			slog.Warn("failed to fetch recent temp history", "device_id", deviceID, "error", dbErr)
+		} else {
+			stats, _ := telemetry.CalculateTempState(recentHistory, "temp", now)
+			state.Payload["Min"] = stats.Min
+			state.Payload["Max"] = stats.Max
+			state.Payload["Average"] = stats.Average
+		}
+	}
+
+	if state.Type == "gas-sensor" {
+		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 50, 0)
+		if dbErr != nil {
+			slog.Warn("failed to fetch recent gas history", "device_id", deviceID, "error", dbErr)
+		} else if len(recentHistory) > 0 {
+			state.Payload["recent_events"] = telemetry.GetGasEvents(recentHistory)
+		}
+	}
+	
 
     context.JSON(http.StatusOK, state)
 }
@@ -237,15 +290,10 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
         }
 
         response["source"] = "DynamoDB"
-        response["data"] = telemetry.FilterTime(rawData, metric, period, now)
-
-        if state.Type == "temp-sensor" {
-            addTempStats(response, rawData, metric, deviceID, now)
-        }
-
-        if state.Type == "door-actuator" {
-			addDoorInsights(response, rawData, state, now)
-		}
+       chartData, chartMax := telemetry.FilterTime(rawData, metric, period, now)
+		response["data"] = chartData
+		response["chart_max"] = chartMax
+        
         if state.Type == "ac-actuator" {
 			if period == "7d" { 
 				// The Usage Bar Chart
@@ -259,19 +307,21 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 		}
 
     } else {
-        response["source"] = "S3"
-        response["data"] = []telemetry.ChartPoint{} // will handle s3 later
-
-        if state.Type == "temp-sensor" {
-            cutoff24h := now - 86400
-            recentData, fetchErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 0, cutoff24h)
-            if fetchErr != nil {
-                context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch recent history"})
-                return
+        response["source"] = "S3 processed data"
+		if period == "1m" {
+            currentMonth := time.Now().Format("2006-01")
+            s3Key := fmt.Sprintf("processed-charts/%s/%s.json", deviceID, currentMonth)
+            s3Data, err := handler.S3Fetcher.GetMonthlyChart(context.Request.Context(), s3Key)  //download json file from s3        
+            if err != nil {
+                slog.Warn("failed to fetch monthly S3 chart", "device_id", deviceID, "error", err)
+                response["data"] = []telemetry.ChartPoint{} //to not cause app crash return an empty array
+            } else {
+                response["data"] = s3Data // The pre-calculated array from Python!
             }
-            addTempStats(response, recentData, metric, deviceID, now)
+        } else {
+             response["data"] = []telemetry.ChartPoint{}
         }
-   
+       
 }
 
     context.JSON(http.StatusOK, response)
@@ -299,7 +349,7 @@ func (handler *DeviceHandler) GetDeviceAlerts(context *gin.Context) {
 }
 func isHotTier(period string) bool {
     switch period {
-    case "1h", "24h", "7d", "1m":
+    case  "24h", "7d":
         return true
     default:
         return false
@@ -336,6 +386,12 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		slog.Warn("Failed to get alerts for system overview", "error", err)
 	}
 	alertsChart := telemetry.GetAlerts(alertsList, timeFilter)
+	warningMax := telemetry.GetChartMax(alertsChart["warning"])
+	criticalMax := telemetry.GetChartMax(alertsChart["critical"])
+	alertsMax := warningMax
+	if criticalMax > warningMax {
+		alertsMax = criticalMax
+	}
 
     //calculate Energy Consumption
 	acData, err := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), "ac-01", 0, cutoff)  //ac name may be changed later
@@ -345,13 +401,16 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 	
 	acUsage := telemetry.CalculateACUsage(acData, now, timeFilter)
 	energyData := telemetry.CalculateEnergy(acUsage)
+	energyMax := telemetry.GetChartMax(energyData)
 
 
 	context.JSON(http.StatusOK, gin.H{
 		"system_status":  systemStatus,
 		"devices_online": fmt.Sprintf("%d / %d", onlineCount, len(states)),
 		"alerts_chart":   alertsChart,
+		"alerts_chart_max":   alertsMax,
         "energy_consumption": energyData,
+		"energy_chart_max":   energyMax,
 	})
 }
 

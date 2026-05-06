@@ -82,16 +82,17 @@ router.GET("/ping", func(c *gin.Context) {
 c.JSON(http.StatusOK, gin.H{"message": "pong"})
 })
 
-//grouping routes
-v1 := router.Group("/api/v1")
-{
-v1.GET("/devices", deviceHandler.GetDevices)
-v1.GET("/devices/:id", deviceHandler.GetDeviceByID)
-v1.GET("/devices/:id/telemetry", deviceHandler.GetDeviceTelemetry)
-v1.GET("/devices/:id/alerts", deviceHandler.GetDeviceAlerts)
-v1.GET("/system/overview", deviceHandler.GetSystemOverview)
-v1.POST("/devices/:id/commands", deviceHandler.SendCommand)
-}
+	//grouping routes
+	v1 := router.Group("/api/v1")
+	{
+		v1.GET("/devices", deviceHandler.GetDevices)
+		v1.GET("/alerts", deviceHandler.GetSortedAlerts)
+		v1.GET("/devices/:id", deviceHandler.GetDeviceByID)
+		v1.GET("/devices/:id/telemetry", deviceHandler.GetDeviceTelemetry)
+		v1.GET("/devices/:id/alerts", deviceHandler.GetDeviceAlerts)
+		v1.GET("/system/overview", deviceHandler.GetSystemOverview)
+		v1.POST("/devices/:id/commands", deviceHandler.SendCommand)
+	}
 
 if os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != "" {
 log.Info("Running as AWS Lambda...")
