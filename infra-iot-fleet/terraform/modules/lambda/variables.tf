@@ -47,3 +47,9 @@ variable "environment_variables" {
   description = "Environment variables for the Lambda function"
   default     = {}
 }
+
+variable "source_code_hash" {
+  type        = string
+  description = "The base64-encoded SHA256 hash of the package file specified with either filename or s3_key"
+  default     = null
+}

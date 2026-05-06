@@ -1,2 +1,9 @@
-# Dummy content for variables.tf
-# This file was generated as part of the project structure setup.
+variable "project_name" {
+  description = "Project name"
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+}

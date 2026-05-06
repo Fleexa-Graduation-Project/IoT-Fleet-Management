@@ -36,20 +36,26 @@ data "aws_iam_policy_document" "iot_ingestion_policy" {
 module "iot_ingestion_lambda" {
   source = "./modules/lambda"
 
-  project_name    = var.project_name
-  environment     = var.environment
-  
+  project_name = var.project_name
+  environment  = var.environment
+
   # explicitly define lambda name for AWS as requested
-  function_name   = "processing_main_lambda"
-  
-  lambda_zip_path = data.archive_file.lambda_zip.output_path
-  
+  function_name = "processing_main_lambda"
+
+  lambda_zip_path  = data.archive_file.lambda_zip.output_path
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+
   custom_policy_json = data.aws_iam_policy_document.iot_ingestion_policy.json
 
   environment_variables = {
-    ENVIRONMENT = var.environment
-    # Add any DynamoDB table names here if needed by the backend
+
+    ENVIRONMENT                 = var.environment
+    DYNAMODB_TABLE_NAME         = "${var.project_name}-${var.environment}-telemetry"
+    DYNAMODB_ALERTS_TABLE       = "${var.project_name}-${var.environment}-alerts"
+    DYNAMODB_DEVICE_STATE_TABLE = "${var.project_name}-${var.environment}-device-state"
+    DYNAMODB_COMMANDS_TABLE     = "${var.project_name}-${var.environment}-commands"
   }
 
   depends_on = [data.archive_file.lambda_zip]
+
 }

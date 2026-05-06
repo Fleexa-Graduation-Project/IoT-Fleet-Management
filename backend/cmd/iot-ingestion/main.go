@@ -7,10 +7,10 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/ingestion"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/ingestion"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
@@ -28,7 +28,6 @@ var (
 )
 
 func init() {
-
 	log = logger.InitLogger()
 	log.Info("lambda function-> cold Start...")
 
@@ -56,12 +55,11 @@ func init() {
 
 	log.Info("iot ingestion -> Cold Start Completed. Stores Ready.")
 
-
 	firebaseKeyPath := os.Getenv("FIREBASE_CREDENTIALS")
 	if firebaseKeyPath == "" {
 		firebaseKeyPath = "./firebase-adminsdk.json" // Make sure this file is uploaded with your Lambda ZIP
 	}
-	
+
 	notifier, err = notifications.NewService(firebaseKeyPath)
 	if err != nil {
 		log.Error("failed to init notification service (Firebase)", "error", err)
@@ -70,11 +68,9 @@ func init() {
 	alertEngine = rules.NewAlertEngine(alertStore, stateStore, notifier)
 
 	log.Info("iot ingestion -> Cold Start Completed. Stores Ready.")
-
 }
 
 func main() {
-
 	service := &ingestion.Service{
 		Logger:         log,
 		TelemetryStore: telemetryStore,

@@ -14,7 +14,7 @@ resource "aws_iot_topic_rule" "telemetry_processor" {
   name        = "${replace(var.project_name, "-", "_")}_telemetry_processor"
   description = "Route telemetry messages to Lambda for DynamoDB storage"
   enabled     = true
-  sql         = "SELECT * FROM 'devices/+/telemetry'"
+  sql         = "SELECT topic() as topic, * as payload FROM 'devices/+/telemetry'"
   sql_version = "2016-03-23"
 
   lambda {
@@ -28,7 +28,7 @@ resource "aws_iot_topic_rule" "alert_processor" {
   name        = "${replace(var.project_name, "-", "_")}_alert_processor"
   description = "Route alert messages to Lambda for alert log storage"
   enabled     = true
-  sql         = "SELECT * FROM 'devices/+/alerts'"
+  sql         = "SELECT topic() as topic, * as payload FROM 'devices/+/alerts'"
   sql_version = "2016-03-23"
 
   lambda {
