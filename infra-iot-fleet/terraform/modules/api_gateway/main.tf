@@ -1,16 +1,16 @@
-# Build Lambda from cmd/api-service/main.go
 resource "null_resource" "build_api_lambda" {
   triggers = {
     always_run = timestamp()
   }
+
   provisioner "local-exec" {
-    command = "cd ${path.root}/../../backend && GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o bootstrap-api cmd/api-service/main.go"
+    command = "cd ${path.root}/../../backend && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o bootstrap cmd/api-service/main.go && chmod +x bootstrap"
   }
 }
 
 data "archive_file" "api_lambda_zip" {
   type        = "zip"
-  source_file = "${path.root}/../../backend/bootstrap-api"
+  source_file = "${path.root}/../../backend/bootstrap"
   output_path = "${path.root}/../../backend/api-service.zip"
 
   depends_on = [null_resource.build_api_lambda]
@@ -42,7 +42,7 @@ resource "aws_lambda_function" "api_lambda" {
   filename         = data.archive_file.api_lambda_zip.output_path
   source_code_hash = data.archive_file.api_lambda_zip.output_base64sha256
   role             = aws_iam_role.api_lambda_role.arn
-  handler          = "bootstrap-api"
+  handler          = "bootstrap"
   runtime          = "provided.al2023"
   architectures    = ["arm64"]
 
