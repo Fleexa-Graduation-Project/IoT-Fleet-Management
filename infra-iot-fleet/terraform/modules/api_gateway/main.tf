@@ -105,6 +105,18 @@ resource "aws_api_gateway_integration" "lambda_proxy_root" {
 resource "aws_api_gateway_deployment" "api" {
   rest_api_id = aws_api_gateway_rest_api.api.id
 
+  # Force redeploy when integration changes
+  triggers = {
+    redeployment = sha1(jsonencode([
+      aws_api_gateway_integration.lambda_proxy.id,
+      aws_api_gateway_integration.lambda_proxy_root.id,
+    ]))
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
   depends_on = [
     aws_api_gateway_integration.lambda_proxy,
     aws_api_gateway_integration.lambda_proxy_root
