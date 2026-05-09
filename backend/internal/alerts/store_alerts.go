@@ -23,9 +23,9 @@ type AlertStore struct {
 }
 
 func NewAlertStore() (*AlertStore, error) {
-	tableName := os.Getenv("DYNAMODB_ALERTS_TABLE")
+	tableName := os.Getenv("ALERTS_TABLE")
 	if tableName == "" {
-		return nil, fmt.Errorf("DYNAMODB_ALERTS_TABLE environment variable is not set")
+		return nil, fmt.Errorf("ALERTS_TABLE environment variable is not set")
 	}
 
 	if db.Client == nil {
@@ -137,26 +137,37 @@ func (store *AlertStore) GetAlertsByDevice(ctx context.Context, deviceID string,
 
 //retrieve all alerts in the whole system (system overview part)
 func (store *AlertStore) GetAllAlerts(ctx context.Context, since int64) ([]models.Alert, error) {
-	input := &dynamodb.ScanInput{
-		TableName: aws.String(store.TableName),
-		FilterExpression: aws.String("#ts >= :since"),
-		ExpressionAttributeNames: map[string]string{
-			"#ts": "timestamp",
-		},
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":since": &types.AttributeValueMemberN{Value: fmt.Sprint(since)},
-		},
-	}
-
-	res, err := store.Client.Scan(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan all alerts: %w", err)
-	}
-
 	var alerts []models.Alert
-	if err = attributevalue.UnmarshalListOfMaps(res.Items, &alerts);
-	  err != nil {
-		return nil, fmt.Errorf("failed to unmarshal alerts: %w", err)
+	var lastEvaluatedKey map[string]types.AttributeValue
+
+	for {
+		input := &dynamodb.ScanInput{
+			TableName:        aws.String(store.TableName),
+			FilterExpression: aws.String("#ts >= :since"),
+			ExpressionAttributeNames: map[string]string{
+				"#ts": "timestamp",
+			},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":since": &types.AttributeValueMemberN{Value: fmt.Sprint(since)},
+			},
+			ExclusiveStartKey: lastEvaluatedKey,
+		}
+
+		res, err := store.Client.Scan(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan all alerts: %w", err)
+		}
+
+		var page []models.Alert
+		if err = attributevalue.UnmarshalListOfMaps(res.Items, &page); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal alerts: %w", err)
+		}
+		alerts = append(alerts, page...)
+
+		lastEvaluatedKey = res.LastEvaluatedKey
+		if lastEvaluatedKey == nil {
+			break
+		}
 	}
 
 	return alerts, nil

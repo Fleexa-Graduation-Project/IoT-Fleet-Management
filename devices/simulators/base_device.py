@@ -256,7 +256,7 @@ class BaseDevice(ABC):
         
         Args:
             alert_status: Alert type (e.g., "FIRE_DETECTED", "LOW_BATTERY")
-            severity: "LOW", "MEDIUM", or "CRITICAL"
+            severity: "WARNING" or "CRITICAL"
             additional_data: Optional extra alert data
         """
         try:

@@ -1,24 +1,25 @@
 package main
 
 import (
-"context"
-"net/http"
-"os"
+	"context"
+	"net/http"
+	"os"
+	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
+    "github.com/aws/aws-lambda-go/lambda"
 
-"github.com/Fleexa-Graduation-Project/Backend/internal/api/handlers"
-"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
-"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
-"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
-"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
-"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
-"github.com/Fleexa-Graduation-Project/Backend/internal/commands"
-"github.com/Fleexa-Graduation-Project/Backend/internal/iot"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/api/handlers"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/auth"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
+	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
+	"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/commands"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/iot"
 
-"github.com/aws/aws-lambda-go/events"
-"github.com/aws/aws-lambda-go/lambda"
-"github.com/aws/aws-sdk-go-v2/config"
-ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
-"github.com/gin-gonic/gin"
+	"github.com/aws/aws-sdk-go-v2/config"
+
+	"github.com/gin-gonic/gin"
 )
 
 var ginLambda *ginadapter.GinLambda
@@ -67,45 +68,69 @@ panic(err)
 }
 iotPublisher := iot.NewPublisher(cfg)
 
-//initializing the device holder
-deviceHandler := &handlers.DeviceHandler{
-StateStore:     stateStore,
-TelemetryStore: telemetryStore,
-AlertStore:     alertStore,
-CommandStore:   commandStore,
-IoTPublisher:   iotPublisher,
-}
+	cognitoClient, err := auth.NewCognitoClient(cfg)
+	if err != nil {
+		log.Error("failed to initialize Cognito client", "error", err)
+		panic(err)
+	}
+	if err := auth.InitJWKS(context.Background()); err != nil {
+		log.Error("failed to initialize JWKS for token validation", "error", err)
+		panic(err)
+	}
 
-router := gin.Default()
+	bucketName := os.Getenv("BUCKET_NAME")
+	s3Fetcher, err := iot.NewS3Client(context.Background(), bucketName)
+	if err != nil {
+		log.Error("failed to initialize S3Client", "error", err)
+		panic(err)
+	}
 
-router.GET("/ping", func(c *gin.Context) {
-c.JSON(http.StatusOK, gin.H{"message": "pong"})
-})
+	deviceHandler := &handlers.DeviceHandler{
+		StateStore:     stateStore,
+		TelemetryStore: telemetryStore,
+		AlertStore:     alertStore,
+		CommandStore:   commandStore,
+		IoTPublisher:   iotPublisher,
+		S3Fetcher:      s3Fetcher,
+	}
 
-//grouping routes
-v1 := router.Group("/api/v1")
-{
-v1.GET("/devices", deviceHandler.GetDevices)
-v1.GET("/devices/:id", deviceHandler.GetDeviceByID)
-v1.GET("/devices/:id/telemetry", deviceHandler.GetDeviceTelemetry)
-v1.GET("/devices/:id/alerts", deviceHandler.GetDeviceAlerts)
-v1.GET("/system/overview", deviceHandler.GetSystemOverview)
-v1.POST("/devices/:id/commands", deviceHandler.SendCommand)
-}
+	authHandler := &handlers.AuthHandler{Cognito: cognitoClient}
 
-if os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != "" {
-log.Info("Running as AWS Lambda...")
-ginLambda = ginadapter.New(router)
-lambda.Start(Handler)
-} else {
-port := os.Getenv("PORT")
-if port == "" {
-port = "8080"
-}
-log.Info("Listening and serving HTTP on port: " + port)
-if err := router.Run(":" + port); err != nil {
-log.Error("Failed to start server", "error", err)
-os.Exit(1)
-}
-}
+	router := gin.Default()
+
+	router.GET("/ping", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"message": "pong"})
+	})
+
+	//grouping routes
+	v1 := router.Group("/api/v1")
+	{
+		v1.GET("/devices", deviceHandler.GetDevices)
+		v1.GET("/alerts", deviceHandler.GetSortedAlerts)
+		v1.GET("/devices/:id", deviceHandler.GetDeviceByID)
+		v1.GET("/devices/:id/telemetry", deviceHandler.GetDeviceTelemetry)
+		v1.GET("/devices/:id/alerts", deviceHandler.GetDeviceAlerts)
+		v1.GET("/system/overview", deviceHandler.GetSystemOverview)
+		v1.POST("/devices/:id/commands", deviceHandler.SendCommand)
+
+		authRoutes := v1.Group("/auth")
+		{
+			authRoutes.POST("/signup",          authHandler.SignUp)
+			authRoutes.POST("/signin",          authHandler.SignIn)
+			authRoutes.POST("/refresh",         authHandler.RefreshTokens)
+			authRoutes.POST("/forgot-password", authHandler.ForgotPassword)
+			authRoutes.POST("/reset-password",  authHandler.ResetPassword)
+
+			protected := authRoutes.Group("", auth.Middleware())
+			{
+				protected.POST("/change-password", authHandler.ChangePassword)
+				protected.GET("/profile",          authHandler.GetProfile)
+			}
+		}
+	}
+	
+
+	log.Info("api-service -> stores ready, starting lambda handler...")
+	adapter := ginadapter.NewV2(router)
+	lambda.Start(adapter.ProxyWithContext)
 }

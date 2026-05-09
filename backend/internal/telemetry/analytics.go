@@ -18,7 +18,54 @@ type ChartPoint struct {
 	Value float64 `json:"value"` // y-axis
 }
 
-// temp min max avg state
+type AlertChartPoint struct {
+	Label     string  `json:"label"`
+	Warnings  float64 `json:"warnings"`
+	Criticals float64 `json:"criticals"`
+}
+
+func SplitAlertChart(points []AlertChartPoint) map[string][]ChartPoint {
+	warnings  := make([]ChartPoint, 0, len(points))
+	criticals := make([]ChartPoint, 0, len(points))
+	for _, p := range points {
+		warnings  = append(warnings,  ChartPoint{Label: p.Label, Value: p.Warnings})
+		criticals = append(criticals, ChartPoint{Label: p.Label, Value: p.Criticals})
+	}
+	return map[string][]ChartPoint{"warning": warnings, "critical": criticals}
+}
+
+// uses sum (not average) to represent total alert count per week
+func ChunkAlertWeeks(dailyData []AlertChartPoint) []AlertChartPoint {
+	if len(dailyData) == 0 {
+		return []AlertChartPoint{}
+	}
+	warnSums := make([]float64, 4)
+	critSums := make([]float64, 4)
+	counts   := make([]int, 4)
+
+	for i, point := range dailyData {
+		idx := i / 7
+		if idx > 3 {
+			idx = 3
+		}
+		warnSums[idx]  += point.Warnings
+		critSums[idx]  += point.Criticals
+		counts[idx]++
+	}
+
+	result := make([]AlertChartPoint, 0, 4)
+	for i := 0; i < 4; i++ {
+		val := AlertChartPoint{Label: fmt.Sprintf("Week %d", i+1)}
+		if counts[i] > 0 {
+			val.Warnings  = warnSums[i]
+			val.Criticals = critSums[i]
+		}
+		result = append(result, val)
+	}
+	return result
+}
+
+// temp min-max-avg state
 type TempState struct {
 	Min     float64 `json:"min"`
 	Max     float64 `json:"max"`
@@ -28,8 +75,6 @@ type TempState struct {
 
  func PeriodCutoff(now int64, period string) int64 {
    switch period {
-	case "1h":
-		return now - 3600
 	case "24h":
 		return now - 86400 // 24 * 60 * 60
 	case "7d":
@@ -42,7 +87,7 @@ type TempState struct {
 }
 func GetTimeFormat(period string) string {
 	switch period {
-	case "24h", "1h":
+	case "24h":
 		return "15:04"
 	case "7d":
 		return "Mon"
@@ -53,9 +98,10 @@ func GetTimeFormat(period string) string {
 	}
 }
 
-func FilterTime(history []models.Telemetry, metric string, period string, now int64) []ChartPoint {
-    cutoff := PeriodCutoff(now, period)
+func FilterTime(history []models.Telemetry, metric string, period string, now int64) ([]ChartPoint, float64) {    
+	cutoff := PeriodCutoff(now, period)
 	timeFormat := GetTimeFormat(period)
+	maxVal := -math.MaxFloat64
 
     var mapCapacity int
     switch period {
@@ -77,18 +123,30 @@ func FilterTime(history []models.Telemetry, metric string, period string, now in
             break 
         }
 
-        if val, exists := record.Payload[metric]; exists {
+        if val, exists := record.Payload[metric]; 
+		exists {
             recordTime := time.Unix(record.Timestamp, 0)
-            timeLabel := recordTime.Format(timeFormat)
+            var timeLabel string
+			if period == "24h" {
+				roundedHour := (recordTime.Hour() / 2) * 2
+				timeLabel = fmt.Sprintf("%02d:00", roundedHour)
+			} else {
+				timeLabel = recordTime.Format(timeFormat)
+			}
 
-            if strVal, ok := val.(string); ok && strVal == "ON" {
+
+            if strVal, ok := val.(string); 
+			ok && strVal == "ON" {
                 groupedData[timeLabel] += 0.083
             }
 
-            if floatVal, ok := val.(float64); ok {
+            if floatVal, ok := val.(float64); 
+			ok {
                 groupedData[timeLabel] += floatVal
                 countMap[timeLabel]++
-            } else if intVal, ok := val.(int); ok {
+            
+				} else if intVal, ok := val.(int); 
+				ok {
                 groupedData[timeLabel] += float64(intVal)
                 countMap[timeLabel]++
             }
@@ -101,6 +159,10 @@ func FilterTime(history []models.Telemetry, metric string, period string, now in
         if count, wasSensor := countMap[label]; wasSensor && count > 0 {
             finalValue = total / float64(count)
         }
+
+		if finalValue > maxVal {
+			maxVal = finalValue
+		}
         chartResult = append(chartResult, ChartPoint{
             Label: label,
             Value: math.Round(finalValue*10) / 10,
@@ -111,7 +173,24 @@ func FilterTime(history []models.Telemetry, metric string, period string, now in
         return cmp.Compare(a.Label, b.Label)
     })
 
-    return chartResult
+	if maxVal == -math.MaxFloat64 {
+		maxVal = 0.0
+	}
+
+    return chartResult, math.Round(maxVal*10)/10
+}
+// get the max y value for charts
+func GetChartMax(data []ChartPoint) float64 {
+	if len(data) == 0 {
+		return 0.0
+	}
+	maxVal := -math.MaxFloat64
+	for _, pt := range data {
+		if pt.Value > maxVal {
+			maxVal = pt.Value
+		}
+	}
+	return maxVal
 }
 
 func TimeAgo(ts int64, now int64) string {
@@ -292,6 +371,43 @@ func FormatACEvents(history []models.Telemetry) []map[string]interface{} {
 	}
 	return formatted
 }
+//gas alerts and warnings
+func GetGasEvents(history []models.Telemetry) []map[string]interface{} {
+	formatted := make([]map[string]interface{}, 0)
+	now := time.Now().Unix()
+
+	for _, record := range history {
+		if len(formatted) == 5 {
+			break
+		}
+		status, _ := record.Payload["status"].(string)
+		alarm, _ := record.Payload["alarm_on"].(bool)
+		
+		if status == "SAFE" && !alarm {
+			continue                    //skip normal readings
+		}
+
+		description := "Gas level Exceed safe limit"
+		if status == "WARNING" {
+			description = "Gas spike detected"
+		}
+
+		levelStr := ""
+		if val, ok := record.Payload["gas_level"].(float64); ok {
+			levelStr = fmt.Sprintf("%.0f PPM", val)
+		} else if intVal, ok := record.Payload["gas_level"].(int); ok {
+			levelStr = fmt.Sprintf("%d PPM", intVal)
+		}
+
+		formatted = append(formatted, map[string]interface{}{
+		"description": description,
+			"gas_level":   levelStr,
+			"time":        TimeAgo(record.Timestamp, now),
+			"timestamp":   record.Timestamp,
+		})
+	}
+	return formatted
+}
 
 //calculating the total used hours for the last 5 days
 func CalculateACUsage(history []models.Telemetry, now int64, period string) []ChartPoint {
@@ -446,4 +562,44 @@ func CalculateEnergy(acUsage []ChartPoint) []ChartPoint {
 	}
 
 	return energyChart
+}
+
+
+//takes an array of daily ChartPoints and averages them into 4 weeks.
+func ChunkIntoWeeks(dailyData []ChartPoint) []ChartPoint {
+	if len(dailyData) == 0 {
+		return []ChartPoint{}
+	}
+
+	weeklySums := make([]float64, 4)
+	weeklyCounts := make([]int, 4)
+
+	for i, point := range dailyData {
+		// Figure out which week index (0, 1, 2, or 3) this day belongs to
+		weekIndex := i / 7
+		if weekIndex > 3 {
+			weekIndex = 3 // Force days 29, 30, 31 into the final week
+		}
+
+		weeklySums[weekIndex] += point.Value
+		weeklyCounts[weekIndex]++
+	}
+
+	var weeklyChart []ChartPoint
+	for i := 0; i < 4; i++ {
+		if weeklyCounts[i] > 0 {
+			avg := weeklySums[i] / float64(weeklyCounts[i])
+			weeklyChart = append(weeklyChart, ChartPoint{
+				Label: fmt.Sprintf("Week %d", i+1),
+				Value: math.Round(avg*10) / 10,
+			})
+		} else {
+			weeklyChart = append(weeklyChart, ChartPoint{
+				Label: fmt.Sprintf("Week %d", i+1),
+				Value: 0.0,
+			})
+		}
+	}
+
+	return weeklyChart
 }

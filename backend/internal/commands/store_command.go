@@ -20,9 +20,9 @@ type CommandStore struct {
 }
 
 func NewCommandStore() (*CommandStore, error) {
-	tableName := os.Getenv("DYNAMODB_COMMANDS_TABLE")
+	tableName := os.Getenv("COMMANDS_TABLE")
 	if tableName == "" {
-		return nil, fmt.Errorf("DYNAMODB_COMMANDS_TABLE environment variable is not set")
+		return nil, fmt.Errorf("COMMANDS_TABLE environment variable is not set")
 	}
 
 	if db.Client == nil {

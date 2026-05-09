@@ -40,7 +40,7 @@ class ACCurtainActuator(BaseDevice):
 
     def _check_and_publish_alerts(self):
         if self.ac_power_watts > 1400:
-            self.publish_alert("AC_OVERCONSUMPTION", "MEDIUM",
+            self.publish_alert("AC_OVERCONSUMPTION", "WARNING",
                                {"power_watts": self.ac_power_watts, "threshold": 1400})
 
     def generate_telemetry(self) -> Dict[str, Any]:
