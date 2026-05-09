@@ -63,7 +63,7 @@ class GasSensor(BaseDevice):
             "gas_level": self.gas_level,
             "co_ppm": self.co_ppm,
             "lpg_ppm": self.lpg_ppm,
-            "open": self.is_open,
+            "status": status,
         })
         self._check_and_publish_alerts()
         return {
@@ -71,7 +71,7 @@ class GasSensor(BaseDevice):
             "gas_level": self.gas_level,
             "co_ppm": self.co_ppm,
             "lpg_ppm": self.lpg_ppm,
-            "open": self.is_open,
+            "status": status,
         }
 
     def handle_command(self, command: Dict[str, Any]):

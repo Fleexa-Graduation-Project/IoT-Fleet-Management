@@ -7,10 +7,10 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/ingestion"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/ingestion"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
@@ -28,7 +28,6 @@ var (
 )
 
 func init() {
-
 	log = logger.InitLogger()
 	log.Info("lambda function-> cold Start...")
 
@@ -74,7 +73,6 @@ func init() {
 }
 
 func main() {
-
 	service := &ingestion.Service{
 		Logger:         log,
 		TelemetryStore: telemetryStore,

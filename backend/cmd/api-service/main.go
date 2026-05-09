@@ -22,45 +22,51 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func main() {
-	log := logger.InitLogger()
-	log.Info("starting fleexa api server...")
+var ginLambda *ginadapter.GinLambda
 
-	
-	if err := db.NewDynamoDBClient(context.Background()); err != nil {
-		log.Error("failed to initialize dynamodb", "error", err)
-		panic(err)
-	}
-
-	cfg, err := config.LoadDefaultConfig(context.Background())
-	if err != nil {
-		log.Error("failed to load aws config for iot", "error", err)
-		panic(err)
-	}
-
-	stateStore, err := devices.NewStateStore()
-	if err != nil {
-		log.Error("failed to initialize StateStore", "error", err)
-		panic(err)
-	}
-
-	telemetryStore, err := telemetry.NewTelemetryStore()
-	if err != nil {
-		log.Error("failed to initialize TelemetryStore", "error", err)
-		panic(err)
-	}
-
-	alertStore, err := alerts.NewAlertStore()
-if err != nil {
-    log.Error("Failed to initialize AlertStore", "error", err)
-    panic(err)
+func Handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+// If no name is provided in the HTTP request body, throw an error
+return ginLambda.ProxyWithContext(ctx, req)
 }
-    commandStore, err := commands.NewCommandStore()
-	if err != nil {
-		log.Error("Failed to initialize CommandStore", "error", err)
-		panic(err)
-	}
-	iotPublisher := iot.NewPublisher(cfg)
+
+func main() {
+log := logger.InitLogger()
+log.Info("starting fleexa api server...")
+
+if err := db.NewDynamoDBClient(context.Background()); err != nil {
+log.Error("failed to initialize dynamodb", "error", err)
+panic(err)
+}
+
+cfg, err := config.LoadDefaultConfig(context.Background())
+if err != nil {
+log.Error("failed to load aws config for iot", "error", err)
+panic(err)
+}
+
+stateStore, err := devices.NewStateStore()
+if err != nil {
+log.Error("failed to initialize StateStore", "error", err)
+panic(err)
+}
+
+telemetryStore, err := telemetry.NewTelemetryStore()
+if err != nil {
+log.Error("failed to initialize TelemetryStore", "error", err)
+panic(err)
+}
+
+alertStore, err := alerts.NewAlertStore()
+if err != nil {
+log.Error("Failed to initialize AlertStore", "error", err)
+panic(err)
+}
+commandStore, err := commands.NewCommandStore()
+if err != nil {
+log.Error("Failed to initialize CommandStore", "error", err)
+panic(err)
+}
+iotPublisher := iot.NewPublisher(cfg)
 
 	cognitoClient, err := auth.NewCognitoClient(cfg)
 	if err != nil {
