@@ -51,15 +51,14 @@ resource "aws_lambda_function" "api_lambda" {
 
   environment {
     variables = {
-      ENVIRONMENT                 = var.environment
-      AWS_REGION_NAME             = var.aws_region
-      DYNAMODB_TABLE_NAME         = "${var.project_name}-${var.environment}-telemetry"
-      DYNAMODB_ALERTS_TABLE       = "${var.project_name}-${var.environment}-alerts"
-      DYNAMODB_DEVICE_STATE_TABLE = "${var.project_name}-${var.environment}-device-state"
-      DYNAMODB_COMMANDS_TABLE     = "${var.project_name}-${var.environment}-commands"
-      COGNITO_USER_POOL_ID        = var.cognito_user_pool_id
-      COGNITO_CLIENT_ID           = var.cognito_client_id
-      BUCKET_NAME                 = var.bucket_name
+      ENVIRONMENT          = var.environment
+      STATE_TABLE          = "${var.project_name}-${var.environment}-device-state"
+      TELEMETRY_TABLE      = "${var.project_name}-${var.environment}-telemetry"
+      ALERTS_TABLE         = "${var.project_name}-${var.environment}-alerts"
+      COMMANDS_TABLE       = "${var.project_name}-${var.environment}-commands"
+      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+      COGNITO_CLIENT_ID    = var.cognito_client_id
+      BUCKET_NAME          = var.bucket_name
     }
   }
 
@@ -73,7 +72,7 @@ resource "aws_apigatewayv2_api" "api" {
 
 resource "aws_apigatewayv2_stage" "api" {
   api_id      = aws_apigatewayv2_api.api.id
-  name        = var.environment
+  name        = "$default"
   auto_deploy = true
 }
 
