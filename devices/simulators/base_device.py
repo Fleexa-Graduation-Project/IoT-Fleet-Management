@@ -8,6 +8,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
 import paho.mqtt.client as mqtt
 from enum import Enum
+import signal
+import threading
 
 # Import schema validator
 from devices.simulators.schema_validator import get_validator
@@ -79,8 +81,8 @@ class BaseDevice(ABC):
         """Configure MQTT client with TLS"""
         self.mqtt_client = mqtt.Client(
             client_id=self.config.device_id,
-            protocol=mqtt.MQTTv311,
-            transport="tcp"
+            clean_session=True,
+            protocol=mqtt.MQTTv311         
         )
         
         # Set callbacks
@@ -161,18 +163,41 @@ class BaseDevice(ABC):
         """Establish MQTT connection to AWS IoT Core"""
         try:
             logger.info(f"🔗 Connecting {self.config.device_id}...")
+
+            connected_event = threading.Event()
+            connect_error = [None]
+
+            original_on_connect = self._on_connect
+
+            def _patched_on_connect(client, userdata, flags, rc):
+                if rc == 0:
+                    connected_event.set()
+                else:
+                    connect_error[0] = rc
+                    connected_event.set()  # unblock the wait either way
+                original_on_connect(client, userdata, flags, rc)
+
+            self.mqtt_client.on_connect = _patched_on_connect
+
             self.mqtt_client.connect(
                 self.config.mqtt_broker,
                 self.config.mqtt_port,
                 keepalive=60
             )
             self.mqtt_client.loop_start()
-            time.sleep(2)  # Wait for connection to establish
-            
-            if self.is_connected:
-                logger.info(f"✅ {self.config.device_id} ready for telemetry")
-            else:
-                raise Exception("Connection failed after timeout")
+
+            # Block until CONNACK received (max 10s) - no more sleep guessing
+            if not connected_event.wait(timeout=10):
+                raise Exception("Connection timed out - no CONNACK received")
+
+            if connect_error[0] is not None:
+                raise Exception(
+                    f"Connection refused by broker - rc={connect_error[0]}"
+                )
+
+            logger.info(f"✅ {self.config.device_id} connected to AWS IoT Core")
+            logger.info(f"✅ {self.config.device_id} ready for telemetry")
+
         except Exception as e:
             logger.error(f"❌ Connection error: {e}")
             self.status = DeviceStatus.ERROR
@@ -360,38 +385,34 @@ class BaseDevice(ABC):
     
     def run(self, publish_interval: Optional[int] = None):
         """
-        Main device loop - generates and publishes telemetry
-        
-        Args:
-            publish_interval: Override config interval (seconds)
+        Main device loop - runs FOREVER until SIGTERM/SIGINT is received.
+        No time limits. Docker stop -> SIGTERM -> graceful disconnect.
         """
         interval = publish_interval or self.config.publish_interval
-        
+        self._stop_event = threading.Event()
+
+        def _handle_signal(signum, frame):
+            logger.info(f"🛑 {self.config.device_id} received signal {signum}, shutting down...")
+            self._stop_event.set()
+
+        signal.signal(signal.SIGTERM, _handle_signal)
+        signal.signal(signal.SIGINT, _handle_signal)
+
+        logger.info(f"🚀 {self.config.device_id} started - publishing every {interval}s indefinitely")
+        logger.info("   Stop with: docker compose stop OR kill -SIGTERM <pid>")
+
         try:
-            logger.info(f"🚀 {self.config.device_id} started (interval: {interval}s)")
-            
-            while self.is_connected:
+            while not self._stop_event.is_set() and self.is_connected:
                 try:
-                    # Generate device-specific telemetry
                     telemetry = self.generate_telemetry()
-                    
-                    # Publish to AWS IoT Core (schema-compliant)
                     self.publish_telemetry(telemetry)
-                    
-                    # Update device shadow with current state
                     self.update_shadow(self.state)
-                    
-                    # Sleep until next publish
-                    time.sleep(interval)
+                    # Interruptible sleep.
+                    self._stop_event.wait(timeout=interval)
                 except Exception as e:
-                    logger.error(f"❌ Error in main loop: {e}")
+                    logger.error(f"❌ Loop error: {e}")
                     self.error_count += 1
-                    time.sleep(interval)
-        
-        except KeyboardInterrupt:
-            logger.info("⏹️  Shutdown signal received")
-        except Exception as e:
-            logger.error(f"❌ Fatal error: {e}")
+                    self._stop_event.wait(timeout=min(interval, 5))
         finally:
             self.disconnect()
-            logger.info(f"✅ {self.config.device_id} stopped")
+            logger.info(f"✅ {self.config.device_id} stopped cleanly")

@@ -1,29 +1,95 @@
-version: "3.9"
+# devices/docker-compose.yml
+x-device-common: &device-common
+  build:
+    context: ..
+    dockerfile: devices/Dockerfile
+  restart: always
+  stop_grace_period: 30s
+  volumes:
+    - ./certs:/app/certs:ro      # mounts entire certs/ → /app/certs/
+    - ./logs:/app/logs
+  networks:
+    - iot-network
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
 
 services:
-  iot-simulator:
-    build:
-      context: ..
-      dockerfile: devices/Dockerfile
-    container_name: fleexa-iot-simulator
-    environment:
-      - AWS_REGION=us-east-1
-      - MQTT_BROKER=${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
-      - MQTT_PORT=8883
-      - USE_LOCALSTACK=false
-    volumes:
-      - ../certs:/app/certs:ro         # read-only cert mount
-      - ../logs:/app/logs
-    networks:
-      - iot-network
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-  # ── LocalStack (only for CI/dev) ──────────────────────────────────────────
+  temperature-sensor:
+    <<: *device-common
+    container_name: fleexa-temperature-sensor
+    environment:
+      DEVICE_ID: temp-sensor-01          # ← matches devices/certs/temp-sensor-01/
+      DEVICE_TYPE: temperature_sensor
+      DEVICE_NAME: "Temperature Sensor"
+      DEVICE_LOCATION: "Server Room"
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "30"
+
+  gas-sensor:
+    <<: *device-common
+    container_name: fleexa-gas-sensor
+    environment:
+      DEVICE_ID: gas-sensor-01           # ← matches devices/certs/gas-sensor-01/
+      DEVICE_TYPE: gas_sensor
+      DEVICE_NAME: "Gas Sensor"
+      DEVICE_LOCATION: "Warehouse"
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "15"
+
+  door-sensor:
+    <<: *device-common
+    container_name: fleexa-door-sensor
+    environment:
+      DEVICE_ID: door-sensor-01          # ← matches devices/certs/door-sensor-01/
+      DEVICE_TYPE: door_sensor
+      DEVICE_NAME: "Door Sensor"
+      DEVICE_LOCATION: "Main Entrance"
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "10"
+
+  light-sensor:
+    <<: *device-common
+    container_name: fleexa-light-sensor
+    environment:
+      DEVICE_ID: light-sensor-01         # ← matches devices/certs/light-sensor-01/
+      DEVICE_TYPE: light_sensor
+      DEVICE_NAME: "Light Sensor"
+      DEVICE_LOCATION: "Office"
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "60"
+
+  ac-curtain:
+    <<: *device-common
+    container_name: fleexa-ac-curtain
+    environment:
+      DEVICE_ID: ac-curtain-01           # ← matches devices/certs/ac-curtain-01/
+      DEVICE_TYPE: ac_curtain
+      DEVICE_NAME: "AC & Curtain Actuator"
+      DEVICE_LOCATION: "Living Room"
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "30"
+
+  door-locker:
+    <<: *device-common
+    container_name: fleexa-door-locker
+    environment:
+      DEVICE_ID: door-locker-01          # ← matches devices/certs/door-locker-01/
+      DEVICE_TYPE: door_locker
+      DEVICE_NAME: "Door Locker"
+      DEVICE_LOCATION: "Main Entrance"
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "30"
+
   localstack:
     image: localstack/localstack:latest
     container_name: localstack-iot
@@ -31,9 +97,7 @@ services:
       - "4566:4566"
     environment:
       - SERVICES=iot,dynamodb,lambda,apigateway,s3
-      - DEBUG=1
       - DEFAULT_REGION=us-east-1
-      - AWS_DEFAULT_REGION=us-east-1
     volumes:
       - localstack_data:/tmp/localstack
       - /var/run/docker.sock:/var/run/docker.sock
