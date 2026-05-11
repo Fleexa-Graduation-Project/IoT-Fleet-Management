@@ -8,6 +8,24 @@ variable "aws_region" {
   description = "AWS region"
   default     = "us-east-1"
 }
+
+variable "cognito_user_pool_id" {
+  type        = string
+  description = "Cognito User Pool ID"
+  default     = ""
+}
+
+variable "cognito_client_id" {
+  type        = string
+  description = "Cognito Client ID"
+  default     = ""
+}
+
+variable "bucket_name" {
+  type        = string
+  description = "S3 Bucket Name"
+  default     = ""
+}
 variable "environment" {
   type        = string
   description = "Environment (dev/prod)"

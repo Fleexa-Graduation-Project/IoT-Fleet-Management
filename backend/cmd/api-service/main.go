@@ -72,19 +72,25 @@ func main() {
 
 	cognitoClient, err := auth.NewCognitoClient(cfg)
 	if err != nil {
-		log.Error("failed to initialize Cognito client", "error", err)
-		panic(err)
+		log.Warn("Cognito client failed — auth endpoints will be unavailable", "error", err)
+		cognitoClient = nil // pass nil, guard in authHandler methods
 	}
+
 	if err := auth.InitJWKS(context.Background()); err != nil {
-		log.Error("failed to initialize JWKS for token validation", "error", err)
-		panic(err)
+		log.Warn("JWKS initialization failed — auth endpoints will be unavailable", "error", err)
+		// Don't panic — app still starts, only /auth routes affected
 	}
 
 	bucketName := os.Getenv("BUCKET_NAME")
-	s3Fetcher, err := iot.NewS3Client(context.Background(), bucketName)
-	if err != nil {
-		log.Error("failed to initialize S3Client", "error", err)
-		panic(err)
+	var s3Fetcher *iot.S3Client
+	if bucketName != "" {
+		s3Fetcher, err = iot.NewS3Client(context.Background(), bucketName)
+		if err != nil {
+			log.Warn("S3Client initialization failed — certificate fetching unavailable", "error", err)
+			// Don't panic — app still starts
+		}
+	} else {
+		log.Warn("BUCKET_NAME not set — S3Client skipped")
 	}
 
 	deviceHandler := &handlers.DeviceHandler{

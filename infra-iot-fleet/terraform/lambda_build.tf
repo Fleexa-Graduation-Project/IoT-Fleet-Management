@@ -1,17 +1,23 @@
 resource "null_resource" "build_lambda" {
   triggers = {
-    always_run = timestamp() # simplify to run always or based on hash of files
+    always_run = timestamp()
   }
 
   provisioner "local-exec" {
-    command = "cd ${path.module}/../../backend && GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o bootstrap cmd/iot-ingestion/main.go"
+    command = <<-EOT
+      set -e
+      mkdir -p ${path.module}/../../backend/dist/ingestion
+      cd ${path.module}/../../backend
+      GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o dist/ingestion/bootstrap cmd/iot-ingestion/main.go
+      chmod +x dist/ingestion/bootstrap
+    EOT
   }
 }
 
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_file = "${path.module}/../../backend/bootstrap"
-  output_path = "${path.module}/../../backend/iot-ingestion.zip"
+  source_file = "${path.module}/../../backend/dist/ingestion/bootstrap"
+  output_path = "${path.module}/../../backend/dist/ingestion/iot-ingestion.zip"
 
   depends_on = [null_resource.build_lambda]
 }
