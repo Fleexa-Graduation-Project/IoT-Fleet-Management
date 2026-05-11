@@ -195,7 +195,34 @@ func (c *CognitoClient) GetUser(ctx context.Context, accessToken string) (*UserI
 	}
 	return info, nil
 }
+// deletes the user after verifying the user's password
+func (c *CognitoClient) DeleteAccount(ctx context.Context, accessToken string, email, password string) error {
+	//verifing the password
+	_,err := c.svc.InitiateAuth(ctx, &cognitosvc.InitiateAuthInput{
+		AuthFlow: types.AuthFlowTypeUserPasswordAuth,
+		ClientId: aws.String(c.clientID),
+		AuthParameters: map[string]string{
+			"USERNAME": email,
+			"PASSWORD": password,
+		},
+	})
+	if err != nil {
+		var notAuth *types.NotAuthorizedException
+		var notFound *types.UserNotFoundException
+		if errors.As(err, &notAuth) || errors.As(err, &notFound) {
+			return ErrInvalidCredentials
+		}
+		return fmt.Errorf("DeleteAccount password verify: email=%s: %w", email, err)
+	}
 
+	// Step 2: delete the user
+	if _, err = c.svc.DeleteUser(ctx, &cognitosvc.DeleteUserInput{
+		AccessToken: aws.String(accessToken),
+	}); err != nil {
+		return fmt.Errorf("DeleteAccount: email=%s: %w", email, err)
+	}
+	return nil
+}
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	IDToken      string `json:"id_token"`

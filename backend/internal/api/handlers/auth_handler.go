@@ -178,3 +178,33 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		"email":    user.Email,
 	})
 }
+
+
+// DELETE /api/v1/auth/account
+func (h *AuthHandler) DeleteAccount(c *gin.Context) {
+	var req struct {
+		Password string `json:"password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID := c.GetString("user_id") // Cognito sub
+	email := c.GetString("email")
+	accessToken := c.GetString("access_token")
+
+	err := h.Cognito.DeleteAccount(c.Request.Context(), accessToken, email, req.Password)
+	if err == auth.ErrInvalidCredentials {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "incorrect password"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete account"})
+		return
+	}
+
+	slog.Info("account deleted from cognito", "user_id", userID, "email", email)
+
+	c.JSON(http.StatusOK, gin.H{"message": "account deleted successfully"})
+}

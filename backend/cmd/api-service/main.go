@@ -126,6 +126,7 @@ func main() {
 			protected := authRoutes.Group("", auth.Middleware())
 			{
 				protected.POST("/change-password", authHandler.ChangePassword)
+				protected.DELETE("/account", authHandler.DeleteAccount)
 				protected.GET("/profile", authHandler.GetProfile)
 			}
 		}
