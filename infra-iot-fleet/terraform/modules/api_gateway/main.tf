@@ -1,19 +1,22 @@
 resource "null_resource" "build_api_lambda" {
-  triggers = {
-    always_run = timestamp()
-  }
+  triggers = { always_run = timestamp() }
 
   provisioner "local-exec" {
-    command = "cd ${path.root}/../../backend && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o bootstrap cmd/api-service/main.go && chmod +x bootstrap"
+    command = <<-EOT
+      set -e
+      mkdir -p ${path.root}/../../backend/dist/api
+      cd ${path.root}/../../backend
+      GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o dist/api/bootstrap cmd/api-service/main.go
+      chmod +x dist/api/bootstrap
+    EOT
   }
 }
 
 data "archive_file" "api_lambda_zip" {
   type        = "zip"
-  source_file = "${path.root}/../../backend/bootstrap"
-  output_path = "${path.root}/../../backend/api-service.zip"
-
-  depends_on = [null_resource.build_api_lambda]
+  source_file = "${path.root}/../../backend/dist/api/bootstrap"
+  output_path = "${path.root}/../../backend/dist/api/api-service.zip"
+  depends_on  = [null_resource.build_api_lambda]
 }
 
 resource "aws_iam_role" "api_lambda_role" {
@@ -48,7 +51,15 @@ resource "aws_lambda_function" "api_lambda" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT                 = var.environment
+      AWS_REGION_NAME             = var.aws_region
+      DYNAMODB_TABLE_NAME         = "${var.project_name}-${var.environment}-telemetry"
+      DYNAMODB_ALERTS_TABLE       = "${var.project_name}-${var.environment}-alerts"
+      DYNAMODB_DEVICE_STATE_TABLE = "${var.project_name}-${var.environment}-device-state"
+      DYNAMODB_COMMANDS_TABLE     = "${var.project_name}-${var.environment}-commands"
+      COGNITO_USER_POOL_ID        = var.cognito_user_pool_id
+      COGNITO_CLIENT_ID           = var.cognito_client_id
+      BUCKET_NAME                 = var.bucket_name
     }
   }
 
