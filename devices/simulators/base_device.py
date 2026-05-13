@@ -38,7 +38,7 @@ class DeviceConfig:
     ca_cert: str                            # Path to CA certificate
     client_cert: str                        # Path to client certificate
     client_key: str                         # Path to client private key
-    mqtt_broker: str = "iot.us-east-1.amazonaws.com"
+    mqtt_broker: str = "a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com"
     mqtt_port: int = 8883
     publish_interval: int = 60               # seconds between publishes
     
