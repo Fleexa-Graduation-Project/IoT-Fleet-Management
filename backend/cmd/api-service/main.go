@@ -16,6 +16,7 @@ import (
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/iot"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/users"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
 
@@ -78,8 +79,13 @@ func main() {
 
 	if err := auth.InitJWKS(context.Background()); err != nil {
 		log.Warn("JWKS initialization failed — auth endpoints will be unavailable", "error", err)
-		// Don't panic — app still starts, only /auth routes affected
 	}
+	userStore, err := users.NewUserStore()
+	if err != nil {
+		log.Error("failed to initialize UserStore", "error", err)
+		panic(err)
+	}
+
 
 	bucketName := os.Getenv("BUCKET_NAME")
 	var s3Fetcher *iot.S3Client
@@ -102,8 +108,8 @@ func main() {
 		S3Fetcher:      s3Fetcher,
 	}
 
-	authHandler := &handlers.AuthHandler{Cognito: cognitoClient}
-
+	authHandler := &handlers.AuthHandler{Cognito: cognitoClient, UserStore: userStore}
+	userHandler := &handlers.UserHandler{UserStore: userStore}
 	router := gin.Default()
 
 	router.GET("/ping", func(c *gin.Context) {
@@ -136,6 +142,12 @@ func main() {
 				protected.GET("/profile", authHandler.GetProfile)
 			}
 		}
+		userRoutes := v1.Group("/users", auth.Middleware())
+		{
+			userRoutes.GET("/preferences", userHandler.GetPreferences)
+			userRoutes.PUT("/preferences", userHandler.UpdatePreferences)
+		}
+
 	}
 
 	log.Info("api-service -> stores ready, starting lambda handler...")

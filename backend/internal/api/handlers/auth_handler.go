@@ -6,11 +6,13 @@ import (
 	"strings"
 
 	"github.com/Fleexa-Graduation-Project/Backend/internal/auth"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/users"
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
-	Cognito *auth.CognitoClient
+	Cognito   *auth.CognitoClient
+	UserStore *users.UserStore
 }
 
 // POST /api/v1/auth/signup
@@ -205,6 +207,10 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 	}
 
 	slog.Info("account deleted from cognito", "user_id", userID, "email", email)
+
+	if err := h.UserStore.Delete(c.Request.Context(), userID); err != nil {
+		slog.Warn("DeleteAccount: profile cleanup failed", "user_id", userID, "error", err)
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "account deleted successfully"})
 }
