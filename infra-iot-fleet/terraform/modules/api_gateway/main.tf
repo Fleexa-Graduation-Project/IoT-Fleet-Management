@@ -129,6 +129,30 @@ resource "aws_iam_role_policy" "api_lambda_permissions" {
           "iot:Connect"
         ]
         Resource = "*"
+      },
+      {
+        Sid = "FleexaS3ChartReader",
+        Effect = "Allow",
+        Action = ["s3:GetObject"],
+        Resource = [
+          "arn:aws:s3:::*/*"
+        ]
+      },
+      {
+        Sid = "FleexaCognitoOps",
+        Effect = "Allow",
+        Action = [
+          "cognito-idp:SignUp",
+          "cognito-idp:AdminConfirmSignUp",
+          "cognito-idp:AdminUpdateUserAttributes",
+          "cognito-idp:InitiateAuth",
+          "cognito-idp:ChangePassword",
+          "cognito-idp:ForgotPassword",
+          "cognito-idp:ConfirmForgotPassword",
+          "cognito-idp:GetUser",
+          "cognito-idp:DeleteUser"
+        ],
+        Resource = "*"
       }
     ]
   })

@@ -65,3 +65,13 @@ resource "aws_dynamodb_table" "commands" {
     type = "N"
   }
 }
+
+resource "aws_dynamodb_table" "users" {
+  name         = "${var.project_name}_Users"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_id"
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+}
