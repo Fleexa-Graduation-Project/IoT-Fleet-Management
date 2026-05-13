@@ -131,7 +131,7 @@ resource "aws_iam_role_policy" "api_lambda_permissions" {
         Resource = "*"
       },
       {
-        Sid = "FleexaS3ChartReader",
+        Sid    = "FleexaS3ChartReader",
         Effect = "Allow",
         Action = ["s3:GetObject"],
         Resource = [
@@ -139,7 +139,7 @@ resource "aws_iam_role_policy" "api_lambda_permissions" {
         ]
       },
       {
-        Sid = "FleexaCognitoOps",
+        Sid    = "FleexaCognitoOps",
         Effect = "Allow",
         Action = [
           "cognito-idp:SignUp",
