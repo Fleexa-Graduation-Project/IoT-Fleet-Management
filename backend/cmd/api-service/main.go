@@ -118,14 +118,15 @@ func main() {
 
 	//grouping routes
 	v1 := router.Group("/api/v1")
+	device := v1.Group("", auth.Middleware())
 	{
-		v1.GET("/devices", deviceHandler.GetDevices)
-		v1.GET("/alerts", deviceHandler.GetSortedAlerts)
-		v1.GET("/devices/:id", deviceHandler.GetDeviceByID)
-		v1.GET("/devices/:id/telemetry", deviceHandler.GetDeviceTelemetry)
-		v1.GET("/devices/:id/alerts", deviceHandler.GetDeviceAlerts)
-		v1.GET("/system/overview", deviceHandler.GetSystemOverview)
-		v1.POST("/devices/:id/commands", deviceHandler.SendCommand)
+		device.GET("/devices", deviceHandler.GetDevices)
+		device.GET("/alerts", deviceHandler.GetSortedAlerts)
+		device.GET("/devices/:id", deviceHandler.GetDeviceByID)
+		device.GET("/devices/:id/telemetry", deviceHandler.GetDeviceTelemetry)
+		device.GET("/devices/:id/alerts", deviceHandler.GetDeviceAlerts)
+		device.GET("/system/overview", deviceHandler.GetSystemOverview)
+		device.POST("/devices/:id/commands", deviceHandler.SendCommand)
 
 		authRoutes := v1.Group("/auth")
 		{

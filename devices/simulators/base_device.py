@@ -38,6 +38,7 @@ class DeviceStatus(Enum):
 class DeviceConfig:
     """Device Configuration - shared across all devices"""
     device_id:        str                   # device-1, device-2, etc.
+    user_id:          str                   # Cognito sub 
     device_name:      str                   # "Temperature Sensor"
     device_type:      str                   # "temperature_sensor"
     location:         str                   # "Living Room"
@@ -143,7 +144,7 @@ class BaseDevice(ABC):
                 pass
 
             # Subscribe to command topic
-            command_topic = f"devices/{self.config.device_id}/commands"
+            command_topic = f"devices/{self.config.user_id}/{self.config.device_id}/command"
             client.subscribe(command_topic, qos=1)
             logger.debug(f"📨 Subscribed to: {command_topic}")
         else:
@@ -304,9 +305,9 @@ class BaseDevice(ABC):
 
             # Determine device type
             device_type = "sensor" if "sensor" in self.config.device_type else "actuator"
-
             # Build schema-compliant message
             message = {
+                "user_id":   self.config.user_id,
                 "device_id": self.config.device_id,
                 "timestamp": int(time.time()),  # SECONDS (not milliseconds)
                 "type":      device_type,
@@ -357,7 +358,6 @@ class BaseDevice(ABC):
 
             # Determine device type
             device_type = "sensor" if "sensor" in self.config.device_type else "actuator"
-
             # Build alert payload
             alert_payload = {
                 "status":   alert_status,
@@ -370,6 +370,7 @@ class BaseDevice(ABC):
 
             # Build schema-compliant message
             message = {
+                "user_id":   self.config.user_id,
                 "device_id": self.config.device_id,
                 "timestamp": int(time.time()),
                 "type":      device_type,

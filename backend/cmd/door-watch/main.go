@@ -11,6 +11,7 @@ import (
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/notifications"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/users"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
 )
@@ -49,7 +50,13 @@ func init() {
 		log.Error("failed to init notification service (firebase)", "error", err)
 	}
 
-	alertEngine = rules.NewAlertEngine(alertStore, stateStore, notifier)
+	userStore, userErr := users.NewUserStore()
+	if userErr != nil {
+		log.Warn("user store unavailable, push notifications will be skipped", "error", userErr)
+		userStore = nil
+	}
+
+	alertEngine = rules.NewAlertEngine(alertStore, stateStore, notifier, userStore)
 
 	log.Info("door-watch lambda -> cold start complete, stores ready")
 }

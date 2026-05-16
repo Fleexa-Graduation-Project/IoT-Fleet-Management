@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/Fleexa-Graduation-Project/Backend/internal/users"
-	"github.com/Fleexa-Graduation-Project/Backend/models"
 )
 
 type UserHandler struct {
@@ -40,7 +39,8 @@ func (h *UserHandler) UpdatePreferences(c *gin.Context) {
 	}
 
 	var req struct {
-		FCMDeviceToken       string `json:"fcm_device_token"`
+		HardwareID           string `json:"hardware_id"`
+		FCMToken             string `json:"fcm_token"`
 		ReceiveNotifications bool   `json:"receive_notifications"`
 		ReceiveCritical      bool   `json:"receive_critical"`
 		ReceiveWarnings      bool   `json:"receive_warnings"`
@@ -50,13 +50,28 @@ func (h *UserHandler) UpdatePreferences(c *gin.Context) {
 		return
 	}
 
-	// user_id is stamped from the verified JWT — never trust the body.
-	profile := models.UserProfile{
-		UserID:               userID,
-		FCMDeviceToken:       req.FCMDeviceToken,
-		ReceiveNotifications: req.ReceiveNotifications,
-		ReceiveCritical:      req.ReceiveCritical,
-		ReceiveWarnings:      req.ReceiveWarnings,
+	// read first to preserve tokens from other devices
+	profile, err := h.UserStore.GetUserProfile(c.Request.Context(), userID)
+	if err != nil {
+		slog.Error("UpdatePreferences: failed to read profile", "user_id", userID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load preferences"})
+		return
+	}
+
+	profile.ReceiveNotifications = req.ReceiveNotifications
+	profile.ReceiveCritical = req.ReceiveCritical
+	profile.ReceiveWarnings = req.ReceiveWarnings
+
+	// hardware_id present + token non-empty → register; empty token → unregister (logout)
+	if req.HardwareID != "" {
+		if req.FCMToken != "" {
+			if profile.FCMDeviceTokens == nil {
+				profile.FCMDeviceTokens = make(map[string]string)
+			}
+			profile.FCMDeviceTokens[req.HardwareID] = req.FCMToken
+		} else {
+			delete(profile.FCMDeviceTokens, req.HardwareID)
+		}
 	}
 
 	if err := h.UserStore.UpdateUserPreferences(c.Request.Context(), profile); err != nil {

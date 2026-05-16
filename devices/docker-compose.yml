@@ -26,6 +26,7 @@ services:
       DEVICE_TYPE: temperature_sensor
       DEVICE_NAME: "Temperature Sensor"
       DEVICE_LOCATION: "Server Room"
+      USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
       PUBLISH_INTERVAL: "30"
@@ -38,6 +39,7 @@ services:
       DEVICE_TYPE: gas_sensor
       DEVICE_NAME: "Gas Sensor"
       DEVICE_LOCATION: "Warehouse"
+      USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
       PUBLISH_INTERVAL: "15"
@@ -50,6 +52,7 @@ services:
       DEVICE_TYPE: door_sensor
       DEVICE_NAME: "Door Sensor"
       DEVICE_LOCATION: "Main Entrance"
+      USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
       PUBLISH_INTERVAL: "10"
@@ -62,6 +65,7 @@ services:
       DEVICE_TYPE: light_sensor
       DEVICE_NAME: "Light Sensor"
       DEVICE_LOCATION: "Office"
+      USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
       PUBLISH_INTERVAL: "60"
@@ -74,6 +78,7 @@ services:
       DEVICE_TYPE: ac_curtain
       DEVICE_NAME: "AC & Curtain Actuator"
       DEVICE_LOCATION: "Living Room"
+      USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
       PUBLISH_INTERVAL: "30"
@@ -86,6 +91,7 @@ services:
       DEVICE_TYPE: door_locker
       DEVICE_NAME: "Door Locker"
       DEVICE_LOCATION: "Main Entrance"
+      USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
       PUBLISH_INTERVAL: "30"

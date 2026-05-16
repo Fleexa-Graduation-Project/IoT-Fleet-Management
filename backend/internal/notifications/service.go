@@ -29,20 +29,22 @@ func NewService(credentialsFile string) (*Service, error) {
 
 	return &Service{
 		fcmClient: client,
-	}, nil
+		}, nil
 }
 
-//sending a message to a severity-specific topic(filter by WARNING or CRITICAL)
-func (s *Service) SendPushNotification(deviceID string, severity string, title string, body string) {
+//sending a message to a severity-specific topic(filter by WARNING or CRITICAL) to all of the user's registered devices
+func (s *Service) SendPushNotification(ctx context.Context, tokens []string, severity, title, body string) {
 	if s == nil {
-		slog.Warn("notification service unavailable, skipping sending it", "device_id", deviceID)
+		slog.Warn("notification service unavailable, skipping sending it")
+		return
+	}
+	if len(tokens) == 0 {
+		slog.Info("no FCM tokens for user, skipping notification", "severity", severity)
 		return
 	}
 
-	// filter notifications based on user preference.
-	topic := deviceID + "_" + severity
-
-	message := &messaging.Message{
+	message := &messaging.MulticastMessage{
+		Tokens: tokens,
 		Notification: &messaging.Notification{
 			Title: title,
 			Body:  body,
@@ -50,14 +52,17 @@ func (s *Service) SendPushNotification(deviceID string, severity string, title s
 		Data: map[string]string{
 			"severity": severity,
 		},
-		Topic: topic,
 	}
 
-	response, err := s.fcmClient.Send(context.Background(), message)
+	response, err := s.fcmClient.SendEachForMulticast(ctx, message)
 	if err != nil {
-		slog.Error("Failed to send push notification", "error", err, "device_id", deviceID)
+		slog.Error("failed to send push notifications", "error", err, "severity", severity)
 		return
 	}
 
-	slog.Info("Successfully sent push notification", "response", response, "device_id", deviceID)
+	slog.Info("push notifications sent",
+		"success_count", response.SuccessCount,
+		"failure_count", response.FailureCount,
+		"severity", severity,
+	)
 }

@@ -35,11 +35,13 @@ class GasSensor(BaseDevice):
 
     def _calculate_status(self) -> str:
         if self.co_ppm > 35 or self.lpg_ppm > 5000:
+            self.alarm_on = True
             return "DANGEROUS"
         elif self.gas_level > 2000 or self.co_ppm > 9:
             return "POOR"
         elif self.gas_level > 1000:
             return "MODERATE"
+        self.alarm_on = False
         return "GOOD"
 
     def _check_and_publish_alerts(self):
@@ -72,6 +74,7 @@ class GasSensor(BaseDevice):
             "co_ppm": self.co_ppm,
             "lpg_ppm": self.lpg_ppm,
             "status": status,
+            "alarm_on": self.alarm_on,
         }
 
     def handle_command(self, command: Dict[str, Any]):

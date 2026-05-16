@@ -53,21 +53,29 @@ def lambda_handler(_event, _context):
 
     # Get all active devices from the State Store
     state_table      = dynamodb.Table(STATE_TABLE)
+    telemetry_table = dynamodb.Table(TELEMETRY_TABLE)
+    alerts_table    = dynamodb.Table(ALERTS_TABLE)
+
+    #scan devices to build composite keys
     devices_response = state_table.scan(
-        ProjectionExpression="device_id, #type",
+        ProjectionExpression="user_id, device_id, #type",
         ExpressionAttributeNames={"#type": "type"}
     )
 
+    user_ids = set()
+
     for device in devices_response.get('Items', []):
+        user_id     = device['user_id']
         device_id   = device['device_id']
         device_type = device['type']
+        user_ids.add(user_id)
 
         # Query today's raw telemetry
-        telemetry_table = dynamodb.Table(TELEMETRY_TABLE)
+        udk      = f"{user_id}#{device_id}"
         response = telemetry_table.query(
-            KeyConditionExpression="device_id = :did AND #ts BETWEEN :start AND :end",
+            KeyConditionExpression="user_device_id = :udk AND #ts BETWEEN :start AND :end",
             ExpressionAttributeNames={"#ts": "timestamp"},
-            ExpressionAttributeValues={":did": device_id, ":start": start_time, ":end": end_time}
+            ExpressionAttributeValues={":udk": udk, ":start": start_time, ":end": end_time}
         )
 
         items = response.get('Items', [])
@@ -88,27 +96,28 @@ def lambda_handler(_event, _context):
 
         if daily_value is not None:
             update_s3_chart(
-                f"processed-charts/{device_id}/{month_key}.json",
+                f"processed-charts/{user_id}/{device_id}/{month_key}.json",
                 day_label,
                 {"label": day_label, "value": daily_value}
             )
 
     #alert aggregation for the Alerts & Warnings chart
-    alerts_table    = dynamodb.Table(ALERTS_TABLE)
-    alerts_response = alerts_table.scan(
-        FilterExpression="#ts BETWEEN :start AND :end",
-        ExpressionAttributeNames={"#ts": "timestamp"},
-        ExpressionAttributeValues={":start": start_time, ":end": end_time}
-    )
+    for user_id in user_ids:
+        alerts_response = alerts_table.query(
+            IndexName="UserAlertsIndex",
+            KeyConditionExpression="user_id = :uid AND #ts BETWEEN :start AND :end",
+            ExpressionAttributeNames={"#ts": "timestamp"},
+            ExpressionAttributeValues={":uid": user_id, ":start": start_time, ":end": end_time}
+        )
 
-    alert_items     = alerts_response.get('Items', [])
-    daily_warnings  = sum(1 for a in alert_items if str(a.get('severity', '')).upper() == 'WARNING')
-    daily_criticals = sum(1 for a in alert_items if str(a.get('severity', '')).upper() == 'CRITICAL')
+        alert_items     = alerts_response.get('Items', [])
+        daily_warnings  = sum(1 for a in alert_items if str(a.get('severity', '')).upper() == 'WARNING')
+        daily_criticals = sum(1 for a in alert_items if str(a.get('severity', '')).upper() == 'CRITICAL')
 
-    update_s3_chart(
-        f"processed-alerts/system/{month_key}.json",
-        day_label,
-        {"label": day_label, "warnings": daily_warnings, "criticals": daily_criticals}
-    )
+        update_s3_chart(
+            f"processed-alerts/{user_id}/{month_key}.json",
+            day_label,
+            {"label": day_label, "warnings": daily_warnings, "criticals": daily_criticals}
+        )
 
     return {"status": "success"}

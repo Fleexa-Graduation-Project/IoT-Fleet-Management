@@ -33,11 +33,11 @@ func (s *Service) HandleRequest(ctx context.Context, event map[string]interface{
 
 		duration := time.Since(start)
 		s.Logger.Info("lambda execution complete",
-			"execution_time", duration.Milliseconds(),
+			"execution_time_ms", duration.Milliseconds(),
 			"execution_time", duration.String(),
 			"success", err == nil,
 		)
-	}() 
+	}()
 
 	//validating the message
 	deviceID, messageType, envelope, isBatch, err := validation.ValidateMessage(event)
@@ -45,14 +45,14 @@ func (s *Service) HandleRequest(ctx context.Context, event map[string]interface{
 		s.logValidationError(err, envelope.DeviceID)
 		return err
 	}
-	
+
 	switch messageType {
 	case "telemetry":
 		return s.handleTelemetry(ctx, deviceID, envelope, isBatch)
-
+	
 	case "alerts":
 		return s.handleAlert(ctx, deviceID, envelope)
-
+	
 	default:
 		return fmt.Errorf("unknown message type: %s", messageType)
 	}
@@ -66,7 +66,7 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 			return fmt.Errorf("invalid batch format: items is not a list")
 		}
 
-		service.Logger.Info("processing batch telemetry", "device_id", deviceID, "count", len(items))
+		service.Logger.Info("processing batch telemetry", "user_id", envelope.UserID, "device_id", deviceID, "count", len(items))
 
 		var telemetryList []models.Telemetry
 		var latestReading models.Telemetry
@@ -77,7 +77,7 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 				service.Logger.Warn("skipping invalid item in batch", "device_id", deviceID)
 				continue
 			}
-
+			 
 			//validating individual item structure
 			if err := validation.ValidatePayload(envelope.Type, itemMap); err != nil {
 				service.Logger.Warn("skipping malformed payload in batch", "error", err)
@@ -90,6 +90,7 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 			}
 
 			t := models.Telemetry{
+				UserID:    envelope.UserID,
 				DeviceID:  deviceID,
 				Timestamp: timestamp,
 				Type:      envelope.Type,
@@ -116,16 +117,17 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 	}
 
 	data := models.Telemetry{
+		UserID:    envelope.UserID,
 		DeviceID:  envelope.DeviceID,
 		Timestamp: envelope.Timestamp,
 		Type:      envelope.Type,
 		Payload:   envelope.Payload,
 	}
 
-	service.Logger.Info("saving single telemetry", "device_id", deviceID)
+	service.Logger.Info("saving single telemetry", "user_id", envelope.UserID, "device_id", deviceID)
 
 	if envelope.Type == "gas-sensor" {
-		service.Engine.HandleGas(ctx, envelope.DeviceID, envelope.Payload)
+		service.Engine.HandleGas(ctx, envelope.UserID, envelope.DeviceID, envelope.Payload)
 	}
 
 	if err := service.TelemetryStore.SaveTelemetry(ctx, data); err != nil {
@@ -140,7 +142,8 @@ func (service *Service) handleAlert(ctx context.Context, deviceID string, envelo
 	severity, _ := envelope.Payload["severity"].(string)
 
 	alert := models.Alert{
-		DeviceID:  deviceID,
+		UserID:    envelope.UserID,
+		DeviceID:  envelope.DeviceID,
 		Timestamp: envelope.Timestamp,
 		Type:      envelope.Type,
 		Severity:  severity,
@@ -153,16 +156,16 @@ func (service *Service) handleAlert(ctx context.Context, deviceID string, envelo
 		return err
 	}
 
-	service.Logger.Info("alert saved, sending notification to", "device_id", deviceID, "severity", severity, "type", envelope.Type)
+	service.Logger.Info("alert saved, sending notification to", "user_id", envelope.UserID, "device_id", deviceID, "severity", severity)
 
 	title := fmt.Sprintf("%s — %s", severity, envelope.Type)
 	description, _ := envelope.Payload["description"].(string)
 	if description == "" {
 		description = fmt.Sprintf("%s alert triggered", envelope.Type)
 	}
-	service.Engine.Notifier().SendPushNotification(deviceID, severity, title, description)
+	service.Engine.Notify(ctx, envelope.UserID, severity, title, description)
 
-	return service.StateStore.UpdateHeartbeat(ctx, deviceID)
+	return service.StateStore.UpdateHeartbeat(ctx, envelope.UserID, deviceID)
 }
 
 func (service *Service) logValidationError(err error, deviceID string) {

@@ -43,22 +43,11 @@ func addLightStatus(payload map[string]interface{}, operationalState string) {
 	}
 }
 
-/*
-func addTempStats(response gin.H, data []models.Telemetry, metric, deviceID string, now int64) {
-    stats, err := telemetry.CalculateTempState(data, metric, now)
-    if err != nil {
-        slog.Warn("failed to calculate temp stats", "device_id", deviceID, "metric", metric, "error", err)
-    }
-    response["min"] = stats.Min
-    response["max"] = stats.Max
-    response["average"] = stats.Average
-}
-*/
-
-// handling GET /devices
+//handling GET /api/v1/devices
 func (handler *DeviceHandler) GetDevices(context *gin.Context) {
+	userID := context.GetString("user_id")
 
-	states, err := handler.StateStore.GetAllStates(context.Request.Context())
+	states, err := handler.StateStore.GetAllStates(context.Request.Context(), userID)
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch device states"})
 		return
@@ -72,12 +61,13 @@ func (handler *DeviceHandler) GetDevices(context *gin.Context) {
 	context.JSON(http.StatusOK, gin.H{"data": states})
 }
 
-//GET /alerts (notifications for all devices)
+// GET /api/v1/alerts (notifications for all devices)
 func (handler *DeviceHandler) GetSortedAlerts(context *gin.Context) {
+	userID := context.GetString("user_id")
 	now := time.Now().Unix()
 	cutoff := now - (7 * 86400)
 
-	alertList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), cutoff)
+	alertList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), userID, cutoff)
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch global alerts"})
 		return
@@ -134,18 +124,16 @@ func addDoorInsights(payload map[string]interface{}, data []models.Telemetry, st
 }
 
 //getting info for AC based on temp and timer
-func (handler *DeviceHandler) showACStats(ctx context.Context, payload map[string]interface{}, now int64) {
-
+func (handler *DeviceHandler) showACStats(ctx context.Context, userID string, payload map[string]interface{}, now int64) {
 	insideTemp := 0.0
 
-	tempState, err := handler.StateStore.GetStateByID(ctx, "temp-sensor-01") //temp sensor name may be changed
+	tempState, err := handler.StateStore.GetStateByID(ctx, userID, "temp-sensor-01") //temp sensor name may be changed
 	if err == nil && tempState != nil {
 		if val, ok := tempState.Payload["temp"].(float64); ok {
 			insideTemp = val
 		}
 	}
 	payload["inside_temp"] = insideTemp
-
 	payload["outside_temp"] = 36.0 // demo for now, api fetch later
 
 	// calculate remaining timer time in manual mode
@@ -175,11 +163,12 @@ func (handler *DeviceHandler) showACStats(ctx context.Context, payload map[strin
 	}
 }
 
-// handling GET /devices/:id
+//handling GET /api/v1/devices/:id
 func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
+	userID := context.GetString("user_id")
 	deviceID := context.Param("id")
 
-	state, err := handler.StateStore.GetStateByID(context.Request.Context(), deviceID)
+	state, err := handler.StateStore.GetStateByID(context.Request.Context(), userID, deviceID)
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
@@ -197,13 +186,13 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 	if state.Type == "door-actuator" {
 		now := time.Now().Unix()
 		//get the 5 most recent events
-		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 5, 0)
+		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), userID, deviceID, 5, 0)
 		if dbErr != nil {
 			slog.Warn("failed to fetch recent door history", "device_id", deviceID, "error", dbErr)
 		}
 		showDoorStats(state.Payload, recentHistory, now)
 		cutoff24h := now - 86400
-		history24h, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 0, cutoff24h)
+		history24h, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), userID, deviceID, 0, cutoff24h)
 		if dbErr != nil {
 			slog.Warn("failed to fetch 24h door history", "device_id", deviceID, "error", dbErr)
 		} else {
@@ -212,19 +201,18 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 	}
 	if state.Type == "ac-actuator" {
 		now := time.Now().Unix()
-		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 5, 0)
+		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), userID, deviceID, 5, 0)
 		if dbErr != nil {
 			slog.Warn("failed to fetch recent AC history", "device_id", deviceID, "error", dbErr)
 		} else if len(recentHistory) > 0 {
 			state.Payload["recent_events"] = telemetry.FormatACEvents(recentHistory)
 		}
-
-		handler.showACStats(context.Request.Context(), state.Payload, now)
+		handler.showACStats(context.Request.Context(), userID, state.Payload, now)
 	}
 	if state.Type == "temp-sensor" {
 		now := time.Now().Unix()
 		cutoff24h := now - 86400
-		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 0, cutoff24h)
+		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), userID, deviceID, 0, cutoff24h)
 		if dbErr != nil {
 			slog.Warn("failed to fetch recent temp history", "device_id", deviceID, "error", dbErr)
 		} else {
@@ -234,9 +222,8 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 			state.Payload["Average"] = stats.Average
 		}
 	}
-
 	if state.Type == "gas-sensor" {
-		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 50, 0)
+		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), userID, deviceID, 50, 0)
 		if dbErr != nil {
 			slog.Warn("failed to fetch recent gas history", "device_id", deviceID, "error", dbErr)
 		} else if len(recentHistory) > 0 {
@@ -248,15 +235,15 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 }
 
 //from s3
-func (handler *DeviceHandler) getMonthlyData(ctx context.Context, deviceID string) []telemetry.ChartPoint {
+func (handler *DeviceHandler) getMonthlyData(ctx context.Context, userID, deviceID string) []telemetry.ChartPoint {
 	now := time.Now()
 	thirtyDaysAgo := now.AddDate(0, 0, -30)
 
 	currentMonthStr := now.Format("2006-01")
 	previousMonthStr := thirtyDaysAgo.Format("2006-01")
 
-	currentS3Key := fmt.Sprintf("processed-charts/%s/%s.json", deviceID, currentMonthStr)
-	previousS3Key := fmt.Sprintf("processed-charts/%s/%s.json", deviceID, previousMonthStr)
+	currentS3Key := fmt.Sprintf("processed-charts/%s/%s/%s.json", userID, deviceID, currentMonthStr)
+	previousS3Key := fmt.Sprintf("processed-charts/%s/%s/%s.json", userID, deviceID, previousMonthStr)
 
 	var currData, prevData []telemetry.ChartPoint
 	var wg sync.WaitGroup
@@ -287,7 +274,7 @@ func (handler *DeviceHandler) getMonthlyData(ctx context.Context, deviceID strin
 
 	//add oldest data first, then newest
 	mergedData := append(prevData, currData...)
-
+	
 	if len(mergedData) > 30 {
 		mergedData = mergedData[len(mergedData)-30:]
 	}
@@ -295,15 +282,15 @@ func (handler *DeviceHandler) getMonthlyData(ctx context.Context, deviceID strin
 	return mergedData
 }
 
-func (handler *DeviceHandler) getMonthlyAlerts(ctx context.Context) []telemetry.AlertChartPoint {
-	now          := time.Now()
+func (handler *DeviceHandler) getMonthlyAlerts(ctx context.Context, userID string) []telemetry.AlertChartPoint {
+	now := time.Now()
 	thirtyDaysAgo := now.AddDate(0, 0, -30)
 
 	currentMonthStr  := now.Format("2006-01")
 	previousMonthStr := thirtyDaysAgo.Format("2006-01")
 
-	currentS3Key  := fmt.Sprintf("processed-alerts/system/%s.json", currentMonthStr)
-	previousS3Key := fmt.Sprintf("processed-alerts/system/%s.json", previousMonthStr)
+	currentS3Key  := fmt.Sprintf("processed-alerts/%s/%s.json", userID, currentMonthStr)
+	previousS3Key := fmt.Sprintf("processed-alerts/%s/%s.json", userID, previousMonthStr)
 
 	var currData, prevData []telemetry.AlertChartPoint
 	var wg sync.WaitGroup
@@ -336,14 +323,15 @@ func (handler *DeviceHandler) getMonthlyAlerts(ctx context.Context) []telemetry.
 	return merged
 }
 
-// handling GET /devices/:id/telemetry?period=...&metric=...
+//handling GET /api/v1/devices/:id/telemetry?period=...&metric=...
 func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
+	userID := context.GetString("user_id")
 	deviceID := context.Param("id")
 	period := context.DefaultQuery("period", "24h")
 	metric := context.DefaultQuery("metric", "temp")
 
 	now := time.Now().Unix()
-	state, err := handler.StateStore.GetStateByID(context.Request.Context(), deviceID)
+	state, err := handler.StateStore.GetStateByID(context.Request.Context(), userID, deviceID)
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
@@ -361,7 +349,7 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 	if isHotTier(period) {
 		// Pass the period cutoff to DynamoDB
 		cutoff := telemetry.PeriodCutoff(now, period)
-		rawData, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 0, cutoff)
+		rawData, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), userID, deviceID, 0, cutoff)
 		if dbErr != nil {
 			context.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to fetch telemetry history: device_id=%s, period=%s, error=%v", deviceID, period, dbErr)})
 			return
@@ -372,17 +360,13 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 		response["data"] = chartData
 		response["chart_max"] = chartMax
 
-		if state.Type == "ac-actuator" {
-
-			if period == "24h" {
-				totalSeconds := telemetry.CalculateACRunTime(rawData, now)
-				response["running_time"] = telemetry.FormatACTime(totalSeconds)
-			}
+		if state.Type == "ac-actuator" && period == "24h" {
+			totalSeconds := telemetry.CalculateACRunTime(rawData, now)
+			response["running_time"] = telemetry.FormatACTime(totalSeconds)
 		}
-
 	} else {
 		response["source"] = "S3 processed data"
-		monthlyData := handler.getMonthlyData(context.Request.Context(), deviceID)
+		monthlyData := handler.getMonthlyData(context.Request.Context(), userID, deviceID)
 		if period == "7d" {
 			// Slice the last 7 days from the S3 data
 			if len(monthlyData) > 7 {
@@ -394,7 +378,7 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 			if len(monthlyData) == 0 {
 				response["data"] = []telemetry.ChartPoint{}
 			} else {
-				// Compress those 30 days into 4 weekly points
+                // Compress those 30 days into 4 weekly points
 				response["data"] = telemetry.ChunkIntoWeeks(monthlyData)
 			}
 		} else {
@@ -405,10 +389,12 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 	context.JSON(http.StatusOK, response)
 }
 
+//handling GET /api/v1/devices/:id/alerts
 func (handler *DeviceHandler) GetDeviceAlerts(context *gin.Context) {
+	userID := context.GetString("user_id")
 	deviceID := context.Param("id")
 
-	state, err := handler.StateStore.GetStateByID(context.Request.Context(), deviceID)
+	state, err := handler.StateStore.GetStateByID(context.Request.Context(), userID, deviceID)
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
 		return
@@ -418,24 +404,26 @@ func (handler *DeviceHandler) GetDeviceAlerts(context *gin.Context) {
 		return
 	}
 
-	alertList, err := handler.AlertStore.GetAlertsByDevice(context.Request.Context(), deviceID, 0)
+	alertList, err := handler.AlertStore.GetAlertsByDevice(context.Request.Context(), userID, deviceID, 0)
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch alerts"})
 		return
 	}
 	context.JSON(http.StatusOK, gin.H{"data": alertList})
 }
+
 func isHotTier(period string) bool {
 	return period == "24h"
 }
 
-//handling GET /system/overview
+//handling GET /api/v1/system/overview
 func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
+	userID := context.GetString("user_id")
 	timeFilter := context.DefaultQuery("period", "7d") // default -> 7d
 	now := time.Now().Unix()
 	cutoff := telemetry.PeriodCutoff(now, timeFilter)
 
-	states, err := handler.StateStore.GetAllStates(context.Request.Context())
+	states, err := handler.StateStore.GetAllStates(context.Request.Context(), userID)
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch device states"})
 		return
@@ -455,13 +443,13 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 	// Alerts: 24h → DynamoDB (raw), 7d/1m → S3 
 	var alertsChart map[string][]telemetry.ChartPoint
 	if isHotTier(timeFilter) {
-		alertsList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), cutoff)
+		alertsList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), userID, cutoff)
 		if err != nil {
 			slog.Warn("failed to get 24h alerts for system overview", "error", err)
 		}
 		alertsChart = telemetry.GetAlerts(alertsList, timeFilter)
 	} else {
-		monthlyAlerts := handler.getMonthlyAlerts(context.Request.Context())
+		monthlyAlerts := handler.getMonthlyAlerts(context.Request.Context(), userID)
 		var sliced []telemetry.AlertChartPoint
 		if timeFilter == "7d" {
 			if len(monthlyAlerts) > 7 {
@@ -485,7 +473,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 	var energyData []telemetry.ChartPoint
 	if isHotTier(timeFilter) {
 		acHistory, acErr := handler.TelemetryStore.GetTelemetryHistory(
-			context.Request.Context(), "ac-actuator-01", 0, cutoff,
+			context.Request.Context(), userID, "ac-actuator-01", 0, cutoff,
 		)
 		if acErr != nil {
 			slog.Warn("failed to fetch AC telemetry for energy chart", "error", acErr)
@@ -496,7 +484,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 			{Label: "Today", Value: todayHours},
 		})
 	} else {
-		acMonthlyData := handler.getMonthlyData(context.Request.Context(), "ac-actuator-01")
+		acMonthlyData := handler.getMonthlyData(context.Request.Context(), userID, "ac-actuator-01")
 		var acUsage []telemetry.ChartPoint
 		if timeFilter == "7d" {
 			if len(acMonthlyData) > 7 {
@@ -504,7 +492,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 			} else {
 				acUsage = acMonthlyData
 			}
-		} else { // 1m
+		} else { // 1m 
 			acUsage = telemetry.ChunkIntoWeeks(acMonthlyData)
 		}
 		energyData = telemetry.CalculateEnergy(acUsage)
@@ -521,8 +509,9 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 	})
 }
 
-//handling POST /devices/:id/commands
+//handling POST /api/v1/devices/:id/commands
 func (handler *DeviceHandler) SendCommand(context *gin.Context) {
+	userID := context.GetString("user_id")
 	deviceID := context.Param("id")
 
 	var req SendCommandRequest
@@ -538,7 +527,7 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		"parameters": req.Parameters,
 	}
 
-	topic := fmt.Sprintf("devices/%s/command", deviceID)
+	topic := fmt.Sprintf("devices/%s/%s/command", userID, deviceID)
 	err := handler.IoTPublisher.Publish(context.Request.Context(), topic, mqttPayload)
 	if err != nil {
 		slog.Error("failed to publish command to iot Core", "device_id", deviceID, "error", err)
@@ -548,6 +537,7 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 
 	commandRecord := models.Command{
 		RequestID:  requestID,
+		UserID:     userID,
 		DeviceID:   deviceID,
 		Timestamp:  time.Now().Unix(),
 		Action:     req.Action,

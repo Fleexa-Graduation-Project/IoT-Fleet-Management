@@ -14,6 +14,7 @@ def build_config_from_env():
 
     return DeviceConfig(
         device_id        = device_id,
+        user_id          = os.environ["USER_ID"],
         device_name      = os.environ["DEVICE_NAME"],
         device_type      = os.environ["DEVICE_TYPE"],
         location         = os.environ.get("DEVICE_LOCATION", "Unknown"),

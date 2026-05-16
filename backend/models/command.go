@@ -2,6 +2,7 @@ package models
 
 type Command struct {
 	RequestID string                 `json:"request_id" dynamodbav:"request_id"`
+	UserID     string                `json:"user_id"     dynamodbav:"user_id"`
 	DeviceID  string                 `json:"device_id" dynamodbav:"device_id"`
 	Timestamp int64                  `json:"timestamp" dynamodbav:"timestamp"`
 	Action    string                 `json:"action" dynamodbav:"action"`

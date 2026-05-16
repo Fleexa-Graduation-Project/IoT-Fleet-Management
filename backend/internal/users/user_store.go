@@ -30,8 +30,7 @@ func NewUserStore() (*UserStore, error) {
 	return &UserStore{Client: db.Client, TableName: tableName}, nil
 }
 
-// GetUserProfile returns the stored profile for userID, or a safe default
-// (both toggles = true) if no row exists yet.
+//returns the stored profile for userID, or a safe default
 func (s *UserStore) GetUserProfile(ctx context.Context, userID string) (models.UserProfile, error) {
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(s.TableName),
@@ -55,9 +54,7 @@ func (s *UserStore) GetUserProfile(ctx context.Context, userID string) (models.U
 	return profile, nil
 }
 
-// UpdateUserPreferences overwrites the profile row for profile.UserID. PutItem
-// is intentional: the row is tiny and the handler always sends the full
-// profile, so this costs 1 WCU vs. 1 RCU + 1 WCU for UpdateItem.
+//overwrites the profile row for profile.UserID. PutItem
 func (s *UserStore) UpdateUserPreferences(ctx context.Context, profile models.UserProfile) error {
 	if profile.UserID == "" {
 		return fmt.Errorf("UpdateUserPreferences: user_id is required")
@@ -78,8 +75,38 @@ func (s *UserStore) UpdateUserPreferences(ctx context.Context, profile models.Us
 	return nil
 }
 
-// Delete removes the profile row so DeleteAccount does not orphan FCM tokens
-// or preference data after Cognito deletes the user.
+//returns all active FCM tokens for the user that pass the severity filter
+func (s *UserStore) GetFCMTokens(ctx context.Context, userID, severity string) ([]string, error) {
+	profile, err := s.GetUserProfile(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetFCMTokens: user_id=%s: %w", userID, err)
+	}
+
+	if len(profile.FCMDeviceTokens) == 0 || !profile.ReceiveNotifications {
+		return nil, nil
+	}
+
+	switch severity {
+	case "CRITICAL":
+		if !profile.ReceiveCritical {
+			return nil, nil
+		}
+	case "WARNING":
+		if !profile.ReceiveWarnings {
+			return nil, nil
+		}
+	}
+
+	tokens := make([]string, 0, len(profile.FCMDeviceTokens))
+	for _, token := range profile.FCMDeviceTokens {
+		if token != "" {
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens, nil
+}
+
+// removes the profile row so DeleteAccount does not orphan FCM tokens
 func (s *UserStore) Delete(ctx context.Context, userID string) error {
 	_, err := s.Client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(s.TableName),

@@ -4,6 +4,7 @@
   "description": "The standard wrapper for critical safety events",
   "type": "object",
   "required": [
+    "user_id",
     "device_id",
     "timestamp",
     "type",
@@ -11,6 +12,11 @@
   ],
 
   "properties": {
+    "user_id": {
+      "type": "string",
+      "minLength": 3,
+      "description": "Cognito sub of the device owner"
+    },
     "device_id": {
       "type": "string",
       "minLength": 3,

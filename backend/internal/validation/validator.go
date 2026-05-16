@@ -126,6 +126,9 @@ func decodeEnvelope(payloadRaw interface{}, env *models.MQTTEnvelope) error {
 }
 
 func validateEnvelope(env models.MQTTEnvelope, topicDeviceID string) error {
+	if env.UserID == "" {
+		return fmt.Errorf("%w: missing user_id", ErrInvalidEnvelope)
+	}
 	if env.DeviceID == "" {
 		return fmt.Errorf("%w: missing device_id", ErrInvalidEnvelope)
 	}
