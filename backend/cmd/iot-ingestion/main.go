@@ -54,9 +54,6 @@ func init() {
 		panic(fmt.Errorf("failed to init device state store: %w", err))
 	}
 
-	log.Info("iot ingestion -> Cold Start Completed. Stores Ready.")
-
-
 	firebaseKeyPath := os.Getenv("FIREBASE_CREDENTIALS")
 	if firebaseKeyPath == "" {
 		firebaseKeyPath = "./firebase-adminsdk.json" // Make sure this file is uploaded with your Lambda ZIP
