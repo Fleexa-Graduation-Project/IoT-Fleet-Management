@@ -9,6 +9,7 @@ module "dynamodb" {
   project_name = var.project_name
   environment  = var.environment
 }
+
 module "api_gateway" {
   source               = "./modules/api_gateway"
   project_name         = var.project_name
@@ -17,6 +18,8 @@ module "api_gateway" {
   cognito_user_pool_id = var.cognito_user_pool_id
   cognito_client_id    = var.cognito_client_id
   bucket_name          = var.bucket_name
+  iot_endpoint         = var.iot_endpoint
+  users_table_name     = var.users_table_name
 }
 
 module "s3" {

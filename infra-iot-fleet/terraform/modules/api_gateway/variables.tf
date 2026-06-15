@@ -27,3 +27,14 @@ variable "bucket_name" {
   description = "S3 Bucket Name"
   type        = string
 }
+
+variable "iot_endpoint" {
+  description = "AWS IoT Core ATS endpoint (e.g. xxxxxx-ats.iot.us-east-1.amazonaws.com)"
+  type        = string
+}
+
+variable "users_table_name" {
+  description = "DynamoDB Users table name"
+  type        = string
+  default     = "iot-fleet_Users"
+}

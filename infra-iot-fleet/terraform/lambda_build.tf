@@ -32,10 +32,7 @@ data "aws_iam_policy_document" "iot_ingestion_policy" {
       "dynamodb:Query",
       "dynamodb:Scan"
     ]
-    # In a real environment, restrict to the specific tables from the dynamodb module
-    resources = [
-      "*"
-    ]
+    resources = ["*"]
   }
 }
 
@@ -45,7 +42,6 @@ module "iot_ingestion_lambda" {
   project_name = var.project_name
   environment  = var.environment
 
-  # explicitly define lambda name for AWS as requested
   function_name = "processing_main_lambda"
 
   lambda_zip_path  = data.archive_file.lambda_zip.output_path
@@ -53,15 +49,18 @@ module "iot_ingestion_lambda" {
 
   custom_policy_json = data.aws_iam_policy_document.iot_ingestion_policy.json
 
+  # Env var names must match exactly what the Go code reads via os.Getenv()
   environment_variables = {
-
-    ENVIRONMENT                 = var.environment
-    DYNAMODB_TABLE_NAME         = "${var.project_name}-${var.environment}-telemetry"
-    DYNAMODB_ALERTS_TABLE       = "${var.project_name}-${var.environment}-alerts"
-    DYNAMODB_DEVICE_STATE_TABLE = "${var.project_name}-${var.environment}-device-state"
-    DYNAMODB_COMMANDS_TABLE     = "${var.project_name}-${var.environment}-commands"
+    ENVIRONMENT          = var.environment
+    TELEMETRY_TABLE      = "${var.project_name}-${var.environment}-telemetry"
+    ALERTS_TABLE         = "${var.project_name}-${var.environment}-alerts"
+    STATE_TABLE          = "${var.project_name}-${var.environment}-device-state"
+    COMMANDS_TABLE       = "${var.project_name}-${var.environment}-commands"
+    USERS_TABLE          = "iot-fleet_Users"
+    COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+    COGNITO_CLIENT_ID    = var.cognito_client_id
+    FIREBASE_CREDENTIALS = "./firebase-adminsdk.json"
   }
 
   depends_on = [data.archive_file.lambda_zip]
-
 }

@@ -25,11 +25,9 @@ resource "aws_iam_role" "api_lambda_role" {
     Version = "2012-10-17"
     Statement = [
       {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
+        Action    = "sts:AssumeRole"
+        Effect    = "Allow"
+        Principal = { Service = "lambda.amazonaws.com" }
       }
     ]
   })
@@ -56,6 +54,8 @@ resource "aws_lambda_function" "api_lambda" {
       TELEMETRY_TABLE      = "${var.project_name}-${var.environment}-telemetry"
       ALERTS_TABLE         = "${var.project_name}-${var.environment}-alerts"
       COMMANDS_TABLE       = "${var.project_name}-${var.environment}-commands"
+      USERS_TABLE          = var.users_table_name
+      IOT_ENDPOINT         = var.iot_endpoint
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
       BUCKET_NAME          = var.bucket_name
@@ -113,34 +113,25 @@ resource "aws_iam_role_policy" "api_lambda_permissions" {
       {
         Effect = "Allow"
         Action = [
-          "dynamodb:PutItem",
-          "dynamodb:GetItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:Query",
-          "dynamodb:Scan",
-          "dynamodb:DeleteItem"
+          "dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem",
+          "dynamodb:Query",   "dynamodb:Scan",    "dynamodb:DeleteItem"
         ]
         Resource = "*"
       },
       {
+        Effect   = "Allow"
+        Action   = ["iot:Publish", "iot:Connect"]
+        Resource = "*"
+      },
+      {
+        Sid      = "FleexaS3ChartReader"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = ["arn:aws:s3:::*/*"]
+      },
+      {
+        Sid    = "FleexaCognitoOps"
         Effect = "Allow"
-        Action = [
-          "iot:Publish",
-          "iot:Connect"
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "FleexaS3ChartReader",
-        Effect = "Allow",
-        Action = ["s3:GetObject"],
-        Resource = [
-          "arn:aws:s3:::*/*"
-        ]
-      },
-      {
-        Sid    = "FleexaCognitoOps",
-        Effect = "Allow",
         Action = [
           "cognito-idp:SignUp",
           "cognito-idp:AdminConfirmSignUp",
@@ -151,7 +142,7 @@ resource "aws_iam_role_policy" "api_lambda_permissions" {
           "cognito-idp:ConfirmForgotPassword",
           "cognito-idp:GetUser",
           "cognito-idp:DeleteUser"
-        ],
+        ]
         Resource = "*"
       }
     ]
