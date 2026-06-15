@@ -374,8 +374,9 @@ class BaseDevice(ABC):
         try:
             topic = f"devices/{self.config.device_id}/alerts"
 
-            # Determine device type
-            device_type = "sensor" if "sensor" in self.config.device_type else "actuator"
+            device_type_key = DEVICE_TYPE_MAP.get(
+                self.config.device_type, self.config.device_type
+            )
             # Build alert payload
             alert_payload = {
                 "status":   alert_status,
@@ -391,7 +392,7 @@ class BaseDevice(ABC):
                 "user_id":   self.config.user_id,
                 "device_id": self.config.device_id,
                 "timestamp": int(time.time()),
-                "type":      device_type,
+                "type":      device_type_key,
                 "payload":   alert_payload
             }
 
