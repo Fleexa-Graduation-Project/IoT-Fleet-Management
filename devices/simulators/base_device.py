@@ -26,6 +26,18 @@ logger = logging.getLogger(__name__)
 
 HEALTH_FILE = "/tmp/healthy"   # ← FIX: Docker healthcheck target
 
+# Maps Python config.device_type (snake_case from DEVICE_TYPE env var)
+# to the exact key used in the backend Lambda's devices.Rules map.
+# MUST stay in sync with backend/internal/devices/device_rules.go
+DEVICE_TYPE_MAP: Dict[str, str] = {
+    "temperature_sensor": "temp-sensor",
+    "gas_sensor":         "gas-sensor",
+    "door_sensor":        "door-sensor",
+    "light_sensor":       "light-sensor",
+    "door_locker":        "door-actuator",
+    "ac_curtain":         "ac-actuator",
+}
+
 
 class DeviceStatus(Enum):
     """Device operational status"""
@@ -308,14 +320,15 @@ class BaseDevice(ABC):
         try:
             topic = f"devices/{self.config.device_id}/telemetry"
 
-            # Determine device type
-            device_type = "sensor" if "sensor" in self.config.device_type else "actuator"
+            device_type_key = DEVICE_TYPE_MAP.get(
+                self.config.device_type, self.config.device_type
+            )   
             # Build schema-compliant message
             message = {
                 "user_id":   self.config.user_id,
                 "device_id": self.config.device_id,
                 "timestamp": int(time.time()),  # SECONDS (not milliseconds)
-                "type":      device_type,
+                "type":      device_type_key,
                 "payload":   telemetry_payload
             }
 
