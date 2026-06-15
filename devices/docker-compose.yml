@@ -22,6 +22,7 @@ services:
     <<: *device-common
     container_name: fleexa-temperature-sensor
     environment:
+      STARTUP_DELAY: "0"
       DEVICE_ID: temp-sensor-01          # ← matches devices/certs/temp-sensor-01/
       DEVICE_TYPE: temperature_sensor
       DEVICE_NAME: "Temperature Sensor"
@@ -35,6 +36,7 @@ services:
     <<: *device-common
     container_name: fleexa-gas-sensor
     environment:
+      STARTUP_DELAY: "3"
       DEVICE_ID: gas-sensor-01           # ← matches devices/certs/gas-sensor-01/
       DEVICE_TYPE: gas_sensor
       DEVICE_NAME: "Gas Sensor"
@@ -48,6 +50,7 @@ services:
     <<: *device-common
     container_name: fleexa-door-sensor
     environment:
+      STARTUP_DELAY: "6"
       DEVICE_ID: door-sensor-01          # ← matches devices/certs/door-sensor-01/
       DEVICE_TYPE: door_sensor
       DEVICE_NAME: "Door Sensor"
@@ -61,6 +64,7 @@ services:
     <<: *device-common
     container_name: fleexa-light-sensor
     environment:
+      STARTUP_DELAY: "9"
       DEVICE_ID: light-sensor-01         # ← matches devices/certs/light-sensor-01/
       DEVICE_TYPE: light_sensor
       DEVICE_NAME: "Light Sensor"
@@ -74,6 +78,7 @@ services:
     <<: *device-common
     container_name: fleexa-ac-curtain
     environment:
+      STARTUP_DELAY: "12"
       DEVICE_ID: ac-curtain-01           # ← matches devices/certs/ac-curtain-01/
       DEVICE_TYPE: ac_curtain
       DEVICE_NAME: "AC & Curtain Actuator"
@@ -87,6 +92,7 @@ services:
     <<: *device-common
     container_name: fleexa-door-locker
     environment:
+      STARTUP_DELAY: "15"
       DEVICE_ID: door-locker-01          # ← matches devices/certs/door-locker-01/
       DEVICE_TYPE: door_locker
       DEVICE_NAME: "Door Locker"

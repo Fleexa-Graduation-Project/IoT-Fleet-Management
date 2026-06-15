@@ -9,8 +9,7 @@ def build_config_from_env():
     device_id = os.environ["DEVICE_ID"]
     
     # Use exact device_id as client_id to prevent AWS IoT Core policy rejection
-    run_suffix = uuid.uuid4().hex[:6]
-    mqtt_client_id = f"{device_id}-{run_suffix}"
+    mqtt_client_id = device_id
 
     return DeviceConfig(
         device_id        = device_id,

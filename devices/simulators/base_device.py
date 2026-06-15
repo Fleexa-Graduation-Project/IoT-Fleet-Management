@@ -10,6 +10,7 @@ from dataclasses import dataclass, asdict
 import paho.mqtt.client as mqtt
 from enum import Enum
 import signal
+import uuid
 import threading
 
 
@@ -18,7 +19,7 @@ from devices.simulators.schema_validator import get_validator
 
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -107,6 +108,10 @@ class BaseDevice(ABC):
         self.mqtt_client.on_message    = self._on_message
         self.mqtt_client.on_publish    = self._on_publish
 
+        def on_log(client, userdata, level, buf):
+            logger.debug(f"PAHO LOG: {buf}")
+        self.mqtt_client.on_log = on_log
+
         # ← FIX: exponential backoff between reconnect attempts
         self.mqtt_client.reconnect_delay_set(
             min_delay=self.config.reconnect_min_delay,
@@ -120,7 +125,7 @@ class BaseDevice(ABC):
                 certfile=self.config.client_cert,
                 keyfile=self.config.client_key,
                 cert_reqs=mqtt.ssl.CERT_REQUIRED,
-                tls_version=mqtt.ssl.PROTOCOL_TLSv1_2,
+                tls_version=mqtt.ssl.PROTOCOL_TLS_CLIENT,
                 ciphers=None
             )
             self.mqtt_client.tls_insecure = False
@@ -441,7 +446,6 @@ class BaseDevice(ABC):
     def run(self, publish_interval: Optional[int] = None):
         """
         Main device loop - runs FOREVER until SIGTERM/SIGINT.
-        Handles disconnects with automatic reconnection + exponential backoff.
         """
         interval = publish_interval or self.config.publish_interval
         self._stop_event = threading.Event()
@@ -456,34 +460,18 @@ class BaseDevice(ABC):
         logger.info(f"🚀 {self.config.device_id} started - publishing every {interval}s indefinitely")
         logger.info("   Stop with: docker compose stop OR kill -SIGTERM <pid>")
 
-        backoff = 2  # initial reconnect delay in seconds
-
         try:
             while not self._stop_event.is_set():
-                # ← FIX: small settle wait so _on_connect callback
-                #   has time to set is_connected=True before we check it
+                # If disconnected, just wait. Paho's background thread will auto-reconnect.
                 if not self.is_connected:
-                    try:
-                        logger.info(f"🔄 {self.config.device_id} reconnecting in {backoff}s...")
-                        self._stop_event.wait(timeout=backoff)
-                        if self._stop_event.is_set():
-                            break
-                        # ← FIX: use reconnect(), NOT connect() — loop already running
-                        self._reconnect()
-                        backoff = 2  # reset on successful reconnect
-                    except Exception as e:
-                        logger.error(f"❌ Reconnect failed: {e}")
-                        backoff = min(backoff * 2, 60)  # cap at 60s
-                        continue
-
-                # ← FIX: only publish if actually connected after reconnect attempt
-                if not self.is_connected:
+                    self._stop_event.wait(timeout=2)
                     continue
 
                 try:
                     telemetry = self.generate_telemetry()
                     self.publish_telemetry(telemetry)
                     self.update_shadow(self.state)
+                    # Wait until next interval or until interrupted
                     self._stop_event.wait(timeout=interval)
                 except Exception as e:
                     logger.error(f"❌ Loop error: {e}")
