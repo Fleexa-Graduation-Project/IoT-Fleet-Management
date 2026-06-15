@@ -7,6 +7,7 @@ import (
 
 	"github.com/Fleexa-Graduation-Project/Backend/internal/auth"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/users"
+	"github.com/Fleexa-Graduation-Project/Backend/models"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,7 +32,8 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "passwords do not match"})
 		return
 	}
-	err := h.Cognito.SignUp(c.Request.Context(), req.Username, strings.ToLower(req.Email), req.Password)
+
+	userID, err := h.Cognito.SignUp(c.Request.Context(), req.Username, strings.ToLower(req.Email), req.Password)
 	if err == auth.ErrEmailTaken {
 		c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
 		return
@@ -44,6 +46,19 @@ func (h *AuthHandler) SignUp(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create account"})
 		return
 	}
+
+	// Seed the Fleexa_Users profile row so GET /users/preferences works
+	// immediately after signup without requiring a prior PUT.
+	// EnsureProfile uses attribute_not_exists — safe to call multiple times.
+	profile := models.DefaultUserProfile(userID)
+	profile.Username = req.Username
+	profile.Email = strings.ToLower(req.Email)
+	if seedErr := h.UserStore.EnsureProfile(c.Request.Context(), profile); seedErr != nil {
+		// Non-fatal: Cognito account was created. Log and continue.
+		slog.Warn("SignUp: failed to seed user profile in DynamoDB",
+			"user_id", userID, "error", seedErr)
+	}
+
 	c.JSON(http.StatusCreated, gin.H{"message": "account created successfully"})
 }
 
@@ -169,6 +184,8 @@ func (h *AuthHandler) RefreshTokens(c *gin.Context) {
 }
 
 // GET /api/v1/auth/profile
+// Returns the Cognito identity plus user_id (sub) so clients can store it
+// locally and attach it to subsequent API calls via the JWT middleware.
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	user, err := h.Cognito.GetUser(c.Request.Context(), c.GetString("access_token"))
 	if err != nil {
@@ -176,11 +193,11 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
+		"user_id":  user.UserID,
 		"username": user.Username,
 		"email":    user.Email,
 	})
 }
-
 
 // DELETE /api/v1/auth/account
 func (h *AuthHandler) DeleteAccount(c *gin.Context) {
@@ -192,7 +209,7 @@ func (h *AuthHandler) DeleteAccount(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetString("user_id") // Cognito sub
+	userID := c.GetString("user_id")
 	email := c.GetString("email")
 	accessToken := c.GetString("access_token")
 

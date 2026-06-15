@@ -30,7 +30,9 @@ func NewUserStore() (*UserStore, error) {
 	return &UserStore{Client: db.Client, TableName: tableName}, nil
 }
 
-//returns the stored profile for userID, or a safe default
+// GetUserProfile returns the stored profile for userID, or a safe default
+// if the row does not exist yet (e.g. legacy accounts created before this
+// change). Callers should treat a returned default as read-only.
 func (s *UserStore) GetUserProfile(ctx context.Context, userID string) (models.UserProfile, error) {
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(s.TableName),
@@ -54,7 +56,59 @@ func (s *UserStore) GetUserProfile(ctx context.Context, userID string) (models.U
 	return profile, nil
 }
 
-//overwrites the profile row for profile.UserID. PutItem
+// EnsureProfile writes a DefaultUserProfile row only when the item does not
+// already exist (attribute_not_exists condition). This makes it safe to call
+// on every signup — retries and concurrent calls will not overwrite data.
+func (s *UserStore) EnsureProfile(ctx context.Context, profile models.UserProfile) error {
+	if profile.UserID == "" {
+		return fmt.Errorf("EnsureProfile: user_id is required")
+	}
+
+	item, err := attributevalue.MarshalMap(profile)
+	if err != nil {
+		return fmt.Errorf("EnsureProfile: marshal failed user_id=%s: %w", profile.UserID, err)
+	}
+
+	_, err = s.Client.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName:           aws.String(s.TableName),
+		Item:                item,
+		ConditionExpression: aws.String("attribute_not_exists(user_id)"),
+	})
+	if err != nil {
+		// ConditionalCheckFailedException means the row already exists — that is fine.
+		var ccf *types.ConditionalCheckFailedException
+		if ok := isType(err, &ccf); ok {
+			return nil
+		}
+		return fmt.Errorf("EnsureProfile: PutItem failed user_id=%s: %w", profile.UserID, err)
+	}
+	return nil
+}
+
+// isType is a small helper to avoid importing errors at every call site.
+func isType[T error](err error, target *T) bool {
+	if err == nil {
+		return false
+	}
+	import_errors_as := func(e error, t *T) bool {
+		for e != nil {
+			if v, ok := e.(T); ok {
+				*target = v
+				return true
+			}
+			type unwrapper interface{ Unwrap() error }
+			if u, ok := e.(unwrapper); ok {
+				e = u.Unwrap()
+			} else {
+				break
+			}
+		}
+		return false
+	}
+	return import_errors_as(err, target)
+}
+
+// UpdateUserPreferences overwrites the profile row for profile.UserID.
 func (s *UserStore) UpdateUserPreferences(ctx context.Context, profile models.UserProfile) error {
 	if profile.UserID == "" {
 		return fmt.Errorf("UpdateUserPreferences: user_id is required")
@@ -75,7 +129,7 @@ func (s *UserStore) UpdateUserPreferences(ctx context.Context, profile models.Us
 	return nil
 }
 
-//returns all active FCM tokens for the user that pass the severity filter
+// GetFCMTokens returns all active FCM tokens for the user that pass the severity filter.
 func (s *UserStore) GetFCMTokens(ctx context.Context, userID, severity string) ([]string, error) {
 	profile, err := s.GetUserProfile(ctx, userID)
 	if err != nil {
@@ -106,7 +160,7 @@ func (s *UserStore) GetFCMTokens(ctx context.Context, userID, severity string) (
 	return tokens, nil
 }
 
-// removes the profile row so DeleteAccount does not orphan FCM tokens
+// Delete removes the profile row so DeleteAccount does not orphan FCM tokens.
 func (s *UserStore) Delete(ctx context.Context, userID string) error {
 	_, err := s.Client.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(s.TableName),

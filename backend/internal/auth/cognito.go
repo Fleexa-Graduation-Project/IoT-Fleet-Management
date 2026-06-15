@@ -30,10 +30,12 @@ func NewCognitoClient(cfg aws.Config) (*CognitoClient, error) {
 	}, nil
 }
 
-// SignUp creates a new user, auto-confirms it, and marks email as verified
-// so ForgotPassword can deliver the OTP code without a separate confirmation step.
-func (c *CognitoClient) SignUp(ctx context.Context, username, email, password string) error {
-	_, err := c.svc.SignUp(ctx, &cognitosvc.SignUpInput{
+// SignUp creates a new Cognito user, auto-confirms it, and marks email as
+// verified so ForgotPassword can deliver OTP codes without a separate step.
+// Returns the Cognito sub (user_id) so the caller can immediately seed the
+// Fleexa_Users DynamoDB table.
+func (c *CognitoClient) SignUp(ctx context.Context, username, email, password string) (string, error) {
+	out, err := c.svc.SignUp(ctx, &cognitosvc.SignUpInput{
 		ClientId: aws.String(c.clientID),
 		Username: aws.String(email),
 		Password: aws.String(password),
@@ -45,20 +47,22 @@ func (c *CognitoClient) SignUp(ctx context.Context, username, email, password st
 	if err != nil {
 		var exists *types.UsernameExistsException
 		if errors.As(err, &exists) {
-			return ErrEmailTaken
+			return "", ErrEmailTaken
 		}
 		var weakPwd *types.InvalidPasswordException
 		if errors.As(err, &weakPwd) {
-			return ErrWeakPassword
+			return "", ErrWeakPassword
 		}
-		return fmt.Errorf("SignUp: email=%s: %w", email, err)
+		return "", fmt.Errorf("SignUp: email=%s: %w", email, err)
 	}
+
+	userID := aws.ToString(out.UserSub)
 
 	if _, err = c.svc.AdminConfirmSignUp(ctx, &cognitosvc.AdminConfirmSignUpInput{
 		UserPoolId: aws.String(c.userPoolID),
 		Username:   aws.String(email),
 	}); err != nil {
-		return fmt.Errorf("SignUp confirm: email=%s: %w", email, err)
+		return "", fmt.Errorf("SignUp confirm: email=%s: %w", email, err)
 	}
 
 	// email_verified=true is required for ForgotPassword to deliver the OTP
@@ -69,9 +73,10 @@ func (c *CognitoClient) SignUp(ctx context.Context, username, email, password st
 			{Name: aws.String("email_verified"), Value: aws.String("true")},
 		},
 	}); err != nil {
-		return fmt.Errorf("SignUp verify email: email=%s: %w", email, err)
+		return "", fmt.Errorf("SignUp verify email: email=%s: %w", email, err)
 	}
-	return nil
+
+	return userID, nil
 }
 
 func (c *CognitoClient) SignIn(ctx context.Context, email, password string) (*AuthTokens, error) {
@@ -195,10 +200,10 @@ func (c *CognitoClient) GetUser(ctx context.Context, accessToken string) (*UserI
 	}
 	return info, nil
 }
-// deletes the user after verifying the user's password
+
+// DeleteAccount verifies the user's password then deletes the Cognito account.
 func (c *CognitoClient) DeleteAccount(ctx context.Context, accessToken string, email, password string) error {
-	//verifing the password
-	_,err := c.svc.InitiateAuth(ctx, &cognitosvc.InitiateAuthInput{
+	_, err := c.svc.InitiateAuth(ctx, &cognitosvc.InitiateAuthInput{
 		AuthFlow: types.AuthFlowTypeUserPasswordAuth,
 		ClientId: aws.String(c.clientID),
 		AuthParameters: map[string]string{
@@ -215,7 +220,6 @@ func (c *CognitoClient) DeleteAccount(ctx context.Context, accessToken string, e
 		return fmt.Errorf("DeleteAccount password verify: email=%s: %w", email, err)
 	}
 
-	// Step 2: delete the user
 	if _, err = c.svc.DeleteUser(ctx, &cognitosvc.DeleteUserInput{
 		AccessToken: aws.String(accessToken),
 	}); err != nil {
@@ -223,6 +227,7 @@ func (c *CognitoClient) DeleteAccount(ctx context.Context, accessToken string, e
 	}
 	return nil
 }
+
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	IDToken      string `json:"id_token"`
