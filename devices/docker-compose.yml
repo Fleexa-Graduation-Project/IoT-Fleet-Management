@@ -30,7 +30,7 @@ services:
       USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
-      PUBLISH_INTERVAL: "5"
+      PUBLISH_INTERVAL: "30"
 
   gas-sensor:
     <<: *device-common
@@ -44,7 +44,7 @@ services:
       USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
-      PUBLISH_INTERVAL: "5"
+      PUBLISH_INTERVAL: "15"
 
   door-sensor:
     <<: *device-common
@@ -72,7 +72,7 @@ services:
       USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
-      PUBLISH_INTERVAL: "5"
+      PUBLISH_INTERVAL: "60"
 
   ac-curtain:
     <<: *device-common
