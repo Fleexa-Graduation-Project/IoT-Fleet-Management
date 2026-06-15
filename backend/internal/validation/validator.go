@@ -18,7 +18,7 @@ var (
 	ErrInvalidPayload  = errors.New("invalid payload")
 )
 
-//validating incoming messages
+// validating incoming messages
 func ValidateMessage(event map[string]interface{}) (
 	deviceID string,
 	messageType string,
@@ -46,10 +46,10 @@ func ValidateMessage(event map[string]interface{}) (
 
 	// CHECK FOR BATCH: Look for "items" key in the payload
 	if messageType == "telemetry" {
-	if items, ok := envelope.Payload["items"].([]interface{}); ok && len(items) > 0 {
-		isBatch = true
+		if items, ok := envelope.Payload["items"].([]interface{}); ok && len(items) > 0 {
+			isBatch = true
+		}
 	}
-}
 
 	// validating envelope fields
 	if err := validateEnvelope(envelope, deviceID); err != nil {
@@ -92,14 +92,14 @@ func validateEvent(event map[string]interface{}) (string, interface{}, error) {
 
 func validateTopic(topic string) (string, string, error) {
 	parts := strings.Split(topic, "/")
-	if len(parts) != 3 {
-		return "", "", fmt.Errorf("%w: expected devices/{id}/{type}", ErrInvalidTopic)
+	if len(parts) != 4 {
+		return "", "", fmt.Errorf("%w: expected devices/{user_id}/{id}/{type}", ErrInvalidTopic)
 	}
 	if parts[0] != "devices" {
 		return "", "", fmt.Errorf("%w: invalid topic root", ErrInvalidTopic)
 	}
-	deviceID := parts[1]
-	messageType := parts[2]
+	deviceID := parts[2]
+	messageType := parts[3]
 	if deviceID == "" {
 		return "", "", fmt.Errorf("%w: empty device id", ErrInvalidTopic)
 	}
