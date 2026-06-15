@@ -49,3 +49,14 @@ variable "alert_processor_lambda_name" {
   description = "Name of existing Lambda function that processes alert messages"
   default     = "processing_main_lambda"
 }
+
+variable "iot_endpoint" {
+  description = "AWS IoT Core ATS endpoint"
+  type        = string
+}
+
+variable "users_table_name" {
+  description = "DynamoDB Users table name"
+  type        = string
+  default     = "iot-fleet_Users"
+}
