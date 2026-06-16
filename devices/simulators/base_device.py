@@ -3,6 +3,7 @@ import json
 import time
 import logging
 import os
+import random
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from abc import ABC, abstractmethod
@@ -67,6 +68,11 @@ class DeviceConfig:
     reconnect_max_delay:   int = 32
     clean_session:         bool = True
     mqtt_client_id:        str = ""         # ← if empty, falls back to device_id
+    # connect_jitter_max: upper bound (seconds) for the random pre-connect sleep.
+    # Each device draws a deterministic-random value in [0, max) seeded from its
+    # device_id so the spread is stable across restarts yet still staggered.
+    # Set to 0 to disable jitter (e.g. in unit tests).
+    connect_jitter_max: int = 10
 
 
 #------------------------------------------------------
@@ -109,7 +115,7 @@ class BaseDevice(ABC):
         """Configure MQTT client with TLS"""
         self.mqtt_client = mqtt.Client(
             client_id=self.config.mqtt_client_id or self.config.device_id,
-            # FIX: clean_session=True — drop any persisted QoS queue on every
+            # clean_session=True — drop any persisted QoS queue on every
             # connect so old, stale-timestamped messages are never replayed.
             clean_session=self.config.clean_session,
             protocol=mqtt.MQTTv311
@@ -145,6 +151,27 @@ class BaseDevice(ABC):
         except Exception as e:
             logger.error(f"❌ TLS setup failed: {e}")
             raise
+
+    def _connect_jitter_sleep(self):
+        """
+        Sleep a short random duration before the initial connect to stagger
+        all containers that start simultaneously under `docker compose up`.
+
+        The jitter is seeded deterministically from device_id so the spread
+        is stable across restarts (same device always gets the same slot)
+        while still being spread across [0, connect_jitter_max) seconds.
+        Set config.connect_jitter_max = 0 to disable (e.g. in unit tests).
+        """
+        if self.config.connect_jitter_max <= 0:
+            return
+        seed = hash(self.config.device_id) & 0xFFFFFFFF
+        rng  = random.Random(seed)
+        jitter = rng.uniform(0, self.config.connect_jitter_max)
+        logger.info(
+            f"⏳ {self.config.device_id} — connect jitter {jitter:.1f}s "
+            f"(max={self.config.connect_jitter_max}s) to avoid stampede"
+        )
+        time.sleep(jitter)
 
     def _on_connect(self, client, userdata, flags, rc):
         """Handle MQTT connection"""
@@ -216,6 +243,11 @@ class BaseDevice(ABC):
     def connect(self, start_loop: bool = True):
         """Establish MQTT connection to AWS IoT Core"""
         try:
+            # Stagger initial connects so all containers don't hit AWS IoT Core
+            # at the same instant when started via `docker compose up`.
+            # Jitter is only applied on the FIRST connect — reconnects skip it.
+            self._connect_jitter_sleep()
+
             logger.info(f"🔗 Connecting {self.config.device_id}...")
 
             connected_event = threading.Event()
@@ -239,7 +271,7 @@ class BaseDevice(ABC):
                 self.config.mqtt_port,
                 keepalive=self.config.keepalive
             )
-            
+
             # Only start the loop thread ONCE on first connect
             if start_loop:
                 self.mqtt_client.loop_start()
@@ -271,7 +303,9 @@ class BaseDevice(ABC):
             logger.error(f"❌ Disconnection error: {e}")
 
     def _reconnect(self):
-        """Re-establish TCP connection only — loop thread is already running"""
+        """Re-establish TCP connection only — loop thread is already running.
+        NOTE: no jitter here — reconnects use Paho's built-in exponential backoff.
+        """
         connected_event = threading.Event()
         connect_error = [None]
 
@@ -322,14 +356,12 @@ class BaseDevice(ABC):
 
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
-            )   
-            # FIX: timestamp is stamped HERE — at actual publish time, not at
-            # payload-construction time — so even if a message is delayed
-            # by a reconnect, the timestamp reflects the real publish moment.
+            )
+            # Timestamp stamped at actual publish time — always fresh.
             message = {
                 "user_id":   self.config.user_id,
                 "device_id": self.config.device_id,
-                "timestamp": int(time.time()),  # always fresh at publish time
+                "timestamp": int(time.time()),
                 "type":      device_type_key,
                 "payload":   telemetry_payload
             }
