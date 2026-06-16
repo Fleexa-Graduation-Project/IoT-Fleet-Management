@@ -6,6 +6,7 @@ x-device-common: &device-common
   restart: always
   stop_grace_period: 30s
   volumes:
+    - ./certs:/app/certs:ro
     - ./logs:/app/logs
   networks:
     - iot-network
@@ -20,10 +21,12 @@ services:
   temperature-sensor:
     <<: *device-common
     container_name: fleexa-temperature-sensor
-    volumes:
-      - ./certs/temp-sensor-01:/app/certs:ro
-      - ./logs:/app/logs
     environment:
+      # STARTUP_DELAY: deterministic base stagger (seconds).
+      # Each device is spaced 5 s apart so at most 1 device connects
+      # per second — well within the AWS IoT Core connect-rate limit.
+      # orchestrator.py adds 0–2 s of random jitter on top of this value
+      # to prevent thundering-herd bursts after broker-forced reconnects.
       STARTUP_DELAY: "0"
       DEVICE_ID: temp-sensor-01
       DEVICE_TYPE: temperature_sensor
@@ -37,9 +40,6 @@ services:
   gas-sensor:
     <<: *device-common
     container_name: fleexa-gas-sensor
-    volumes:
-      - ./certs/gas-sensor-01:/app/certs:ro
-      - ./logs:/app/logs
     environment:
       STARTUP_DELAY: "5"
       DEVICE_ID: gas-sensor-01
@@ -54,9 +54,6 @@ services:
   door-sensor:
     <<: *device-common
     container_name: fleexa-door-sensor
-    volumes:
-      - ./certs/door-sensor-01:/app/certs:ro
-      - ./logs:/app/logs
     environment:
       STARTUP_DELAY: "10"
       DEVICE_ID: door-sensor-01
@@ -71,9 +68,6 @@ services:
   light-sensor:
     <<: *device-common
     container_name: fleexa-light-sensor
-    volumes:
-      - ./certs/light-sensor-01:/app/certs:ro
-      - ./logs:/app/logs
     environment:
       STARTUP_DELAY: "15"
       DEVICE_ID: light-sensor-01
@@ -88,9 +82,6 @@ services:
   ac-curtain:
     <<: *device-common
     container_name: fleexa-ac-curtain
-    volumes:
-      - ./certs/ac-curtain-01:/app/certs:ro
-      - ./logs:/app/logs
     environment:
       STARTUP_DELAY: "20"
       DEVICE_ID: ac-curtain-01
@@ -105,9 +96,6 @@ services:
   door-locker:
     <<: *device-common
     container_name: fleexa-door-locker
-    volumes:
-      - ./certs/door-locker-01:/app/certs:ro
-      - ./logs:/app/logs
     environment:
       STARTUP_DELAY: "25"
       DEVICE_ID: door-locker-01
@@ -120,6 +108,11 @@ services:
       PUBLISH_INTERVAL: "30"
 
   # ── Device Simulator ─────────────────────────────────────────────────────
+  # Invokes processing_main_lambda directly via boto3 every 10 seconds.
+  # Runs automatically alongside all real device containers.
+  # AWS credentials are picked up from the host in this priority order:
+  #   1. AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN env vars
+  #   2. ~/.aws credentials bind-mount (default below)
   simulator:
     build:
       context: ..
