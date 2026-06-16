@@ -352,7 +352,7 @@ class BaseDevice(ABC):
             telemetry_payload: Device-specific sensor data
         """
         try:
-            topic = f"devices/{self.config.user_id}/{self.config.device_id}/telemetry"
+            topic = f"devices/{self.config.device_id}/telemetry"
 
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
@@ -406,7 +406,7 @@ class BaseDevice(ABC):
             additional_data: Optional extra alert data
         """
         try:
-            topic = f"devices/{self.config.user_id}/{self.config.device_id}/alerts"
+            topic = f"devices/{self.config.device_id}/alerts"
 
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
