@@ -30,13 +30,12 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, userID, deviceID strin
 			description = "Gas spike detected"
 		}
 
-		// save the alert to db with context
 		err := engine.alertStore.SaveAlert(ctx, models.Alert{
 			UserID:    userID,
 			DeviceID:  deviceID,
 			Type:      "gas-sensor",
 			Severity:  severity,
-			Timestamp: time.Now().Unix(),
+			Timestamp: models.EpochTime(time.Now().Unix()),
 			Payload: map[string]interface{}{
 				"description": description,
 				"gas_level":   ppmLevel,
@@ -47,7 +46,6 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, userID, deviceID strin
 			slog.Error("failed to save gas alert to db", "error", err, "user_id", userID, "device_id", deviceID)
 		} else {
 			slog.Error("gas alert triggered!", "user_id", userID, "device_id", deviceID, "severity", severity)
-			// send push notification
 			engine.Notify(ctx, userID, severity, "Gas Alert", description)
 		}
 	}

@@ -3,13 +3,13 @@ package rules
 import (
 	"context"
 	"log/slog"
-	"time"
 	"sync"
+	"time"
 
 	"github.com/Fleexa-Graduation-Project/Backend/models"
 )
 
-//1 min EventBridge Cron
+// 1 min EventBridge Cron
 func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
 	states, err := engine.stateStore.GetAllOpenDoors(ctx)
 	if err != nil {
@@ -41,7 +41,7 @@ func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
 		severity := ""
 		description := ""
 
-		//WARNING at 7 mins, CRITICAL at 15 mins, then a reminder if it's still open
+		// WARNING at 7 mins, CRITICAL at 15 mins, then a reminder if still open
 		thresholds := []struct {
 			minutes     float64
 			severity    string
@@ -79,7 +79,7 @@ func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, state models.De
 		DeviceID:  state.DeviceID,
 		Type:      state.Type,
 		Severity:  severity,
-		Timestamp: time.Now().Unix(),
+		Timestamp: models.EpochTime(time.Now().Unix()),
 		Payload: map[string]interface{}{
 			"description": description,
 		},
@@ -91,7 +91,7 @@ func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, state models.De
 	}
 
 	slog.Warn("door security event logged", "user_id", state.UserID, "device_id", state.DeviceID, "severity", severity)
-	
-	//send notification to app
+
+	// send notification to app
 	engine.Notify(ctx, state.UserID, severity, "Door Alert", description)
 }

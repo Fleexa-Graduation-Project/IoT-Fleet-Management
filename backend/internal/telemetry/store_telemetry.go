@@ -32,22 +32,21 @@ func NewTelemetryStore() (*TelemetryStore, error) {
 		return nil, fmt.Errorf("TELEMETRY_TABLE environment variable is not set")
 	}
 
-	//use the global 'db.Client' created in pkg/db/client.go
 	return &TelemetryStore{
 		Client:    db.Client,
 		TableName: tableName,
 	}, nil
 }
 
-//constructs the composite DynamoDB PK for Fleexa_Telemetry.
+// constructs the composite DynamoDB PK for Fleexa_Telemetry.
 func userDeviceKey(userID, deviceID string) string {
 	return userID + "#" + deviceID
 }
 
-//write to db
+// write to db
 func (store *TelemetryStore) SaveTelemetry(ctx context.Context, data models.Telemetry) error {
 	if data.ExpiresAt == 0 {
-		data.ExpiresAt = time.Now().Add(7 * 24 * time.Hour).Unix()
+		data.ExpiresAt = models.EpochTime(time.Now().Add(7 * 24 * time.Hour).Unix())
 	}
 
 	item, err := attributevalue.MarshalMap(data)
@@ -55,7 +54,7 @@ func (store *TelemetryStore) SaveTelemetry(ctx context.Context, data models.Tele
 		return fmt.Errorf("failed to marshal telemetry data: %w", err)
 	}
 
-	//injecting composite PK — Fleexa_Telemetry PK attribute is user_device_id.
+	// injecting composite PK — Fleexa_Telemetry PK attribute is user_device_id.
 	item["user_device_id"] = &types.AttributeValueMemberS{Value: userDeviceKey(data.UserID, data.DeviceID)}
 
 	_, err = store.Client.PutItem(ctx, &dynamodb.PutItemInput{
@@ -69,23 +68,22 @@ func (store *TelemetryStore) SaveTelemetry(ctx context.Context, data models.Tele
 	return nil
 }
 
-// storing multiple telemetry records in a single DynamoDB call(max 25)
+// storing multiple telemetry records in a single DynamoDB call (max 25)
 func (store *TelemetryStore) SaveTelemetryBatch(ctx context.Context, dataList []models.Telemetry) error {
 	if len(dataList) == 0 {
 		return nil
 	}
 
-	defaultExpiry := time.Now().Add(7 * 24 * time.Hour).Unix()
+	defaultExpiry := models.EpochTime(time.Now().Add(7 * 24 * time.Hour).Unix())
 
 	for i := 0; i < len(dataList); i += dynamoBatchLimit {
-		
 		end := i + dynamoBatchLimit
 		if end > len(dataList) {
 			end = len(dataList)
 		}
 
 		chunk := dataList[i:end]
-		
+
 		var writeRequests []types.WriteRequest
 
 		for _, data := range chunk {
@@ -107,7 +105,6 @@ func (store *TelemetryStore) SaveTelemetryBatch(ctx context.Context, dataList []
 			})
 		}
 
-		//use retry logic
 		if err := store.writeBatchWithRetry(ctx, writeRequests); err != nil {
 			return err
 		}
@@ -138,7 +135,6 @@ func (store *TelemetryStore) writeBatchWithRetry(ctx context.Context, requests [
 			return fmt.Errorf("batch write attempt %d failed: %w", attempt+1, err)
 		}
 
-		// Check for unprocessed items
 		unprocessed := output.UnprocessedItems[store.TableName]
 		if len(unprocessed) == 0 {
 			return nil
@@ -150,7 +146,7 @@ func (store *TelemetryStore) writeBatchWithRetry(ctx context.Context, requests [
 	return fmt.Errorf("batch write: %d items still unprocessed after %d retries", len(pending), maxRetries)
 }
 
-//get recent readings for a device within a time range
+// get recent readings for a device within a time range
 func (store *TelemetryStore) GetTelemetryHistory(ctx context.Context, userID, deviceID string, limit int32, since int64) ([]models.Telemetry, error) {
 	key := userDeviceKey(userID, deviceID)
 
