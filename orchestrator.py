@@ -2,12 +2,13 @@
 import os
 import time
 import uuid
+import random
 
 def build_config_from_env():
     from devices.simulators.base_device import DeviceConfig
 
     device_id = os.environ["DEVICE_ID"]
-    
+
     # Use exact device_id as client_id to prevent AWS IoT Core policy rejection
     mqtt_client_id = device_id
 
@@ -26,7 +27,7 @@ def build_config_from_env():
         publish_interval = int(os.environ.get("PUBLISH_INTERVAL", 30)),
         clean_session    = os.environ.get("MQTT_CLEAN_SESSION", "true").lower() == "true",
         keepalive        = int(os.environ.get("MQTT_KEEPALIVE", 30)),
-        mqtt_client_id   = mqtt_client_id, 
+        mqtt_client_id   = mqtt_client_id,
     )
 
 
@@ -54,6 +55,24 @@ def get_device_class(device_type: str):
 
 
 if __name__ == "__main__":
+    # FIX: honour STARTUP_DELAY so containers don't all hammer AWS IoT Core
+    # simultaneously at boot.  Each device has a deterministic base delay
+    # (set in docker-compose.yml) plus a small random jitter (0–2 s) to
+    # avoid thundering-herd reconnect bursts after a broker-forced disconnect.
+    startup_delay = int(os.environ.get("STARTUP_DELAY", 0))
+    jitter        = random.uniform(0, 2)
+    total_delay   = startup_delay + jitter
+
+    if total_delay > 0:
+        import logging
+        logging.basicConfig(level=logging.INFO,
+                            format='%(asctime)s - orchestrator - INFO - %(message)s')
+        logging.getLogger(__name__).info(
+            f"⏳ Startup delay {total_delay:.1f}s "
+            f"(base={startup_delay}s + jitter={jitter:.1f}s)"
+        )
+        time.sleep(total_delay)
+
     config = build_config_from_env()
     DeviceClass = get_device_class(config.device_type)
     device = DeviceClass(config)
