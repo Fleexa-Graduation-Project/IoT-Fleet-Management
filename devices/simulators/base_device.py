@@ -24,7 +24,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-HEALTH_FILE = "/tmp/healthy"   # ← FIX: Docker healthcheck target
+HEALTH_FILE = "/tmp/healthy"   # ← Docker healthcheck target
 
 # Maps Python config.device_type (snake_case from DEVICE_TYPE env var)
 # to the exact key used in the backend Lambda's devices.Rules map.
@@ -62,11 +62,14 @@ class DeviceConfig:
     mqtt_broker:      str = "a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com"
     mqtt_port:        int = 8883
     publish_interval: int = 60              # seconds between publishes
-    # ← FIX: reconnect/keepalive tuning — readable from env via orchestrator
-    keepalive:             int = 30         # was hardcoded 60 in connect()
+    keepalive:             int = 30
     reconnect_min_delay:   int = 1
     reconnect_max_delay:   int = 32
-    clean_session:         bool = False     # persist shadow subscriptions across reconnect
+    # FIX: clean_session=True so Paho never replays stale QoS-1 messages
+    # from a previous session.  Those replayed messages carried the old
+    # timestamp from when they were originally built, causing every
+    # reconnect to flood DynamoDB with frozen/stale timestamps.
+    clean_session:         bool = True
     mqtt_client_id:        str = ""         # ← if empty, falls back to device_id
 
 
@@ -110,7 +113,9 @@ class BaseDevice(ABC):
         """Configure MQTT client with TLS"""
         self.mqtt_client = mqtt.Client(
             client_id=self.config.mqtt_client_id or self.config.device_id,
-            clean_session=self.config.clean_session,   # ← FIX: was hardcoded True
+            # FIX: clean_session=True — drop any persisted QoS queue on every
+            # connect so old, stale-timestamped messages are never replayed.
+            clean_session=self.config.clean_session,
             protocol=mqtt.MQTTv311
         )
 
@@ -124,7 +129,7 @@ class BaseDevice(ABC):
             logger.debug(f"PAHO LOG: {buf}")
         self.mqtt_client.on_log = on_log
 
-        # ← FIX: exponential backoff between reconnect attempts
+        # Exponential backoff between reconnect attempts
         self.mqtt_client.reconnect_delay_set(
             min_delay=self.config.reconnect_min_delay,
             max_delay=self.config.reconnect_max_delay
@@ -153,7 +158,7 @@ class BaseDevice(ABC):
             self.status = DeviceStatus.ACTIVE
             self.error_count = 0
 
-            # ← FIX: signal Docker healthcheck that we're healthy
+            # Signal Docker healthcheck that we're healthy
             try:
                 with open(HEALTH_FILE, "w") as f:
                     f.write("ok")
@@ -174,7 +179,7 @@ class BaseDevice(ABC):
         self.is_connected = False
         self.status = DeviceStatus.OFFLINE
 
-        # ← FIX: remove health file so Docker knows we're offline
+        # Remove health file so Docker knows we're offline
         try:
             os.remove(HEALTH_FILE)
         except FileNotFoundError:
@@ -236,10 +241,10 @@ class BaseDevice(ABC):
             self.mqtt_client.connect(
                 self.config.mqtt_broker,
                 self.config.mqtt_port,
-                keepalive=self.config.keepalive   # ← FIX: was hardcoded 60, now 30
+                keepalive=self.config.keepalive
             )
             
-            # ← FIX: only start the loop thread ONCE on first connect
+            # Only start the loop thread ONCE on first connect
             if start_loop:
                 self.mqtt_client.loop_start()
 
@@ -249,8 +254,7 @@ class BaseDevice(ABC):
             if connect_error[0] is not None:
                 raise Exception(f"Connection refused by broker - rc={connect_error[0]}")
 
-            # ← FIX: set is_connected HERE in the calling thread, guaranteed after CONNACK
-            # Don't rely solely on the async callback thread timing
+            # Set is_connected HERE in the calling thread, guaranteed after CONNACK
             self.is_connected = True
             self.status = DeviceStatus.ACTIVE
 
@@ -323,11 +327,13 @@ class BaseDevice(ABC):
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
             )   
-            # Build schema-compliant message
+            # FIX: timestamp is stamped HERE — at actual publish time, not at
+            # payload-construction time — so even if a message is delayed
+            # by a reconnect, the timestamp reflects the real publish moment.
             message = {
                 "user_id":   self.config.user_id,
                 "device_id": self.config.device_id,
-                "timestamp": int(time.time()),  # SECONDS (not milliseconds)
+                "timestamp": int(time.time()),  # always fresh at publish time
                 "type":      device_type_key,
                 "payload":   telemetry_payload
             }
@@ -387,7 +393,7 @@ class BaseDevice(ABC):
             if additional_data:
                 alert_payload.update(additional_data)
 
-            # Build schema-compliant message
+            # Build schema-compliant message — timestamp always fresh at publish time
             message = {
                 "user_id":   self.config.user_id,
                 "device_id": self.config.device_id,
