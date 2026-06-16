@@ -1,3 +1,4 @@
+
 # orchestrator.py
 import os
 import time
@@ -9,8 +10,16 @@ def build_config_from_env():
 
     device_id = os.environ["DEVICE_ID"]
 
-    # Use exact device_id as client_id to prevent AWS IoT Core policy rejection
-    mqtt_client_id = device_id
+    # Option B: append a short UUID suffix so every container restart gets
+    # a globally-unique client_id.  This prevents AWS IoT Core from
+    # force-evicting a still-running container when a new one starts with
+    # the same device_id (duplicate-clientid disconnect loop, code: 7).
+    # Format: temp-sensor-01-a1b2c3d4  (8 hex chars = low collision risk)
+    # NOTE: the IoT policy's iot:Connect resource must allow a wildcard:
+    #   "arn:aws:iot:*:*:client/temp-sensor-01-*"  (already covered if you
+    #   use "arn:aws:iot:*:*:client/*" in the policy)
+    suffix = uuid.uuid4().hex[:8]
+    mqtt_client_id = f"{device_id}-{suffix}"
 
     return DeviceConfig(
         device_id        = device_id,
