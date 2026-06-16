@@ -65,10 +65,6 @@ class DeviceConfig:
     keepalive:             int = 30
     reconnect_min_delay:   int = 1
     reconnect_max_delay:   int = 32
-    # FIX: clean_session=True so Paho never replays stale QoS-1 messages
-    # from a previous session.  Those replayed messages carried the old
-    # timestamp from when they were originally built, causing every
-    # reconnect to flood DynamoDB with frozen/stale timestamps.
     clean_session:         bool = True
     mqtt_client_id:        str = ""         # ← if empty, falls back to device_id
 
