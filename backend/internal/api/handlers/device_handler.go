@@ -524,11 +524,14 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		return
 	}
 
+	now := time.Now().Unix()
+
 	commandRecord := models.Command{
 		RequestID:  requestID,
 		UserID:     userID,
 		DeviceID:   deviceID,
-		Timestamp:  models.EpochTime(time.Now().Unix()),
+		Timestamp:  models.EpochTime(now),
+		ExpiresAt:  models.EpochTime(now + (30 * 24 * 60 * 60)), // TTL: 30 days
 		Action:     req.Action,
 		Parameters: req.Parameters,
 	}
