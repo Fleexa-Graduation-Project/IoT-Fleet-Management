@@ -38,11 +38,11 @@ func NewCommandStore() (*CommandStore, error) {
 
 func (store *CommandStore) SaveCommand(ctx context.Context, cmd models.Command) error {
 	if cmd.ExpiresAt == 0 {
-		cmd.ExpiresAt = time.Now().Add(30 * 24 * time.Hour).Unix()
+		cmd.ExpiresAt = models.EpochTime(time.Now().Add(30 * 24 * time.Hour).Unix())
 	}
 
 	if cmd.Timestamp == 0 {
-		cmd.Timestamp = time.Now().Unix()
+		cmd.Timestamp = models.EpochTime(time.Now().Unix())
 	}
 
 	item, err := attributevalue.MarshalMap(cmd)
@@ -50,7 +50,7 @@ func (store *CommandStore) SaveCommand(ctx context.Context, cmd models.Command) 
 		return fmt.Errorf("failed to marshal command: %w", err)
 	}
 
-	//injects composite GSI key for DeviceHistoryIndex (PK=user_device_id, SK=timestamp).
+	// injects composite GSI key for DeviceHistoryIndex (PK=user_device_id, SK=timestamp).
 	item["user_device_id"] = &types.AttributeValueMemberS{Value: cmd.UserID + "#" + cmd.DeviceID}
 
 	_, err = store.Client.PutItem(ctx, &dynamodb.PutItemInput{

@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 	"time"
-	"github.com/google/uuid"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/google/uuid"
 
 	"github.com/Fleexa-Graduation-Project/Backend/models"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
@@ -36,17 +37,17 @@ func NewAlertStore() (*AlertStore, error) {
 	}, nil
 }
 
-//constructing the composite DynamoDB PK for Fleexa_Alerts (userid#deviceid)
+// constructing the composite DynamoDB PK for Fleexa_Alerts (userid#deviceid)
 func buildUserDeviceKey(userID, deviceID string) string {
 	return userID + "#" + deviceID
 }
 
 func (store *AlertStore) SaveAlert(ctx context.Context, alert models.Alert) error {
 	if alert.AlertID == "" {
-		 alert.AlertID = uuid.NewString()
+		alert.AlertID = uuid.NewString()
 	}
 	if alert.ExpiresAt == 0 {
-		alert.ExpiresAt = time.Now().Add(30 * 24 * time.Hour).Unix()
+		alert.ExpiresAt = models.EpochTime(time.Now().Add(30 * 24 * time.Hour).Unix())
 	}
 
 	item, err := attributevalue.MarshalMap(alert)
@@ -54,7 +55,7 @@ func (store *AlertStore) SaveAlert(ctx context.Context, alert models.Alert) erro
 		return fmt.Errorf("failed to marshal alert: %w", err)
 	}
 
-	//injects composite PK — Fleexa_Alerts PK attribute is user_device_id.
+	// injects composite PK — Fleexa_Alerts PK attribute is user_device_id.
 	item["user_device_id"] = &types.AttributeValueMemberS{Value: buildUserDeviceKey(alert.UserID, alert.DeviceID)}
 
 	_, err = store.Client.PutItem(ctx, &dynamodb.PutItemInput{
@@ -68,7 +69,7 @@ func (store *AlertStore) SaveAlert(ctx context.Context, alert models.Alert) erro
 	return nil
 }
 
-//return recent alerts for a specific device
+// return recent alerts for a specific device
 func (store *AlertStore) GetAlertsByDevice(ctx context.Context, userID, deviceID string, limit int32) ([]models.Alert, error) {
 	const defaultLimit int32 = 20
 	if limit <= 0 {
@@ -98,7 +99,7 @@ func (store *AlertStore) GetAlertsByDevice(ctx context.Context, userID, deviceID
 	return alertList, nil
 }
 
-//retrieves all alerts for a user in the whole system(system overview part)
+// retrieves all alerts for a user in the whole system (system overview part)
 func (store *AlertStore) GetAllAlerts(ctx context.Context, userID string, since int64) ([]models.Alert, error) {
 	input := &dynamodb.QueryInput{
 		TableName:              aws.String(store.TableName),
@@ -127,7 +128,7 @@ func (store *AlertStore) GetAllAlerts(ctx context.Context, userID string, since 
 	return alerts, nil
 }
 
-//filters a user's alerts by severity
+// filters a user's alerts by severity
 func (store *AlertStore) GetAlertsBySeverity(ctx context.Context, userID, severity string, limit int32) ([]models.Alert, error) {
 	const defaultLimit int32 = 20
 	if limit <= 0 {
@@ -143,7 +144,7 @@ func (store *AlertStore) GetAlertsBySeverity(ctx context.Context, userID, severi
 			":uid": &types.AttributeValueMemberS{Value: userID},
 			":sev": &types.AttributeValueMemberS{Value: severity},
 		},
-		ScanIndexForward: aws.Bool(false), //newest first
+		ScanIndexForward: aws.Bool(false),
 		Limit:            aws.Int32(limit),
 	}
 

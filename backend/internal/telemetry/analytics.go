@@ -1,21 +1,18 @@
 package telemetry
 
 import (
-	"fmt"
 	"cmp"
+	"fmt"
 	"math"
 	"slices"
 	"time"
 
-
-	
-    "github.com/Fleexa-Graduation-Project/Backend/models"
-
+	"github.com/Fleexa-Graduation-Project/Backend/models"
 )
 
 type ChartPoint struct {
-	Label string  `json:"label"` // x-axis
-	Value float64 `json:"value"` // y-axis
+	Label string  `json:"label"`
+	Value float64 `json:"value"`
 }
 
 type AlertChartPoint struct {
@@ -25,10 +22,10 @@ type AlertChartPoint struct {
 }
 
 func SplitAlertChart(points []AlertChartPoint) map[string][]ChartPoint {
-	warnings  := make([]ChartPoint, 0, len(points))
+	warnings := make([]ChartPoint, 0, len(points))
 	criticals := make([]ChartPoint, 0, len(points))
 	for _, p := range points {
-		warnings  = append(warnings,  ChartPoint{Label: p.Label, Value: p.Warnings})
+		warnings = append(warnings, ChartPoint{Label: p.Label, Value: p.Warnings})
 		criticals = append(criticals, ChartPoint{Label: p.Label, Value: p.Criticals})
 	}
 	return map[string][]ChartPoint{"warning": warnings, "critical": criticals}
@@ -41,15 +38,15 @@ func ChunkAlertWeeks(dailyData []AlertChartPoint) []AlertChartPoint {
 	}
 	warnSums := make([]float64, 4)
 	critSums := make([]float64, 4)
-	counts   := make([]int, 4)
+	counts := make([]int, 4)
 
 	for i, point := range dailyData {
 		idx := i / 7
 		if idx > 3 {
 			idx = 3
 		}
-		warnSums[idx]  += point.Warnings
-		critSums[idx]  += point.Criticals
+		warnSums[idx] += point.Warnings
+		critSums[idx] += point.Criticals
 		counts[idx]++
 	}
 
@@ -57,7 +54,7 @@ func ChunkAlertWeeks(dailyData []AlertChartPoint) []AlertChartPoint {
 	for i := 0; i < 4; i++ {
 		val := AlertChartPoint{Label: fmt.Sprintf("Week %d", i+1)}
 		if counts[i] > 0 {
-			val.Warnings  = warnSums[i]
+			val.Warnings = warnSums[i]
 			val.Criticals = critSums[i]
 		}
 		result = append(result, val)
@@ -72,19 +69,19 @@ type TempState struct {
 	Average float64 `json:"average"`
 }
 
-
- func PeriodCutoff(now int64, period string) int64 {
-   switch period {
+func PeriodCutoff(now int64, period string) int64 {
+	switch period {
 	case "24h":
-		return now - 86400 // 24 * 60 * 60
+		return now - 86400
 	case "7d":
-		return now - 604800 // 7 * 24 * 60 * 60
+		return now - 604800
 	case "1m":
-		return now - 2592000 // 30 * 24 * 60 * 60
+		return now - 2592000
 	default:
 		return 0
 	}
 }
+
 func GetTimeFormat(period string) string {
 	switch period {
 	case "24h":
@@ -98,35 +95,35 @@ func GetTimeFormat(period string) string {
 	}
 }
 
-func FilterTime(history []models.Telemetry, metric string, period string, now int64) ([]ChartPoint, float64) {    
+func FilterTime(history []models.Telemetry, metric string, period string, now int64) ([]ChartPoint, float64) {
 	cutoff := PeriodCutoff(now, period)
 	timeFormat := GetTimeFormat(period)
 	maxVal := -math.MaxFloat64
 
-    var mapCapacity int
-    switch period {
-    case "24h":
-        mapCapacity = 24
-    case "7d":
-        mapCapacity = 7
-    case "1m":
-        mapCapacity = 30
-    default:
-        mapCapacity = 30
-    }
+	var mapCapacity int
+	switch period {
+	case "24h":
+		mapCapacity = 24
+	case "7d":
+		mapCapacity = 7
+	case "1m":
+		mapCapacity = 30
+	default:
+		mapCapacity = 30
+	}
 
-    groupedData := make(map[string]float64, mapCapacity)
-    countMap := make(map[string]int, mapCapacity)
+	groupedData := make(map[string]float64, mapCapacity)
+	countMap := make(map[string]int, mapCapacity)
 
-    for _, record := range history {
-        if cutoff > 0 && record.Timestamp < cutoff {
-            break 
-        }
+	for _, record := range history {
+		ts := record.Timestamp.Int64()
+		if cutoff > 0 && ts < cutoff {
+			break
+		}
 
-        if val, exists := record.Payload[metric]; 
-		exists {
-            recordTime := time.Unix(record.Timestamp, 0)
-            var timeLabel string
+		if val, exists := record.Payload[metric]; exists {
+			recordTime := time.Unix(ts, 0)
+			var timeLabel string
 			if period == "24h" {
 				roundedHour := (recordTime.Hour() / 2) * 2
 				timeLabel = fmt.Sprintf("%02d:00", roundedHour)
@@ -134,51 +131,46 @@ func FilterTime(history []models.Telemetry, metric string, period string, now in
 				timeLabel = recordTime.Format(timeFormat)
 			}
 
+			if strVal, ok := val.(string); ok && strVal == "ON" {
+				groupedData[timeLabel] += 0.083
+			}
 
-            if strVal, ok := val.(string); 
-			ok && strVal == "ON" {
-                groupedData[timeLabel] += 0.083
-            }
+			if floatVal, ok := val.(float64); ok {
+				groupedData[timeLabel] += floatVal
+				countMap[timeLabel]++
+			} else if intVal, ok := val.(int); ok {
+				groupedData[timeLabel] += float64(intVal)
+				countMap[timeLabel]++
+			}
+		}
+	}
 
-            if floatVal, ok := val.(float64); 
-			ok {
-                groupedData[timeLabel] += floatVal
-                countMap[timeLabel]++
-            
-				} else if intVal, ok := val.(int); 
-				ok {
-                groupedData[timeLabel] += float64(intVal)
-                countMap[timeLabel]++
-            }
-        }
-    }
-
-    chartResult := make([]ChartPoint, 0, len(groupedData))
-    for label, total := range groupedData {
-        finalValue := total
-        if count, wasSensor := countMap[label]; wasSensor && count > 0 {
-            finalValue = total / float64(count)
-        }
-
+	chartResult := make([]ChartPoint, 0, len(groupedData))
+	for label, total := range groupedData {
+		finalValue := total
+		if count, wasSensor := countMap[label]; wasSensor && count > 0 {
+			finalValue = total / float64(count)
+		}
 		if finalValue > maxVal {
 			maxVal = finalValue
 		}
-        chartResult = append(chartResult, ChartPoint{
-            Label: label,
-            Value: math.Round(finalValue*10) / 10,
-        })
-    }
+		chartResult = append(chartResult, ChartPoint{
+			Label: label,
+			Value: math.Round(finalValue*10) / 10,
+		})
+	}
 
-    slices.SortFunc(chartResult, func(a, b ChartPoint) int {
-        return cmp.Compare(a.Label, b.Label)
-    })
+	slices.SortFunc(chartResult, func(a, b ChartPoint) int {
+		return cmp.Compare(a.Label, b.Label)
+	})
 
 	if maxVal == -math.MaxFloat64 {
 		maxVal = 0.0
 	}
 
-    return chartResult, math.Round(maxVal*10)/10
+	return chartResult, math.Round(maxVal*10) / 10
 }
+
 // get the max y value for charts
 func GetChartMax(data []ChartPoint) float64 {
 	if len(data) == 0 {
@@ -220,59 +212,54 @@ func TimeAgo(ts int64, now int64) string {
 }
 
 func CalculateTempState(history []models.Telemetry, metric string, now int64) (TempState, error) {
-    if len(history) == 0 {
-        return TempState{}, fmt.Errorf("no data")
-    }
+	if len(history) == 0 {
+		return TempState{}, fmt.Errorf("no data")
+	}
 
-	
-    overallMin := math.MaxFloat64
-    overallMax := -math.MaxFloat64
-    overallSum := 0.0
-    overallCount := 0
-    cutoffTime := now - 86400
+	overallMin := math.MaxFloat64
+	overallMax := -math.MaxFloat64
+	overallSum := 0.0
+	overallCount := 0
+	cutoffTime := now - 86400
 
-    for _, record := range history {
-        if record.Timestamp < cutoffTime {
-            break 
-        }
+	for _, record := range history {
+		if record.Timestamp.Int64() < cutoffTime {
+			break
+		}
 
-        if val, exists := record.Payload[metric]; exists {
-            var num float64
-            if floatVal, ok := val.(float64); 
-			ok {
-                num = floatVal
-            } else if intVal, ok := val.(int); 
-			ok {
-                num = float64(intVal)
-            } else {
-                continue
-            }
+		if val, exists := record.Payload[metric]; exists {
+			var num float64
+			if floatVal, ok := val.(float64); ok {
+				num = floatVal
+			} else if intVal, ok := val.(int); ok {
+				num = float64(intVal)
+			} else {
+				continue
+			}
 
-            if num < overallMin {
-                overallMin = num
-            }
-            if num > overallMax {
-                overallMax = num
-            }
-            overallSum += num
-            overallCount++
-        }
-    }
+			if num < overallMin {
+				overallMin = num
+			}
+			if num > overallMax {
+				overallMax = num
+			}
+			overallSum += num
+			overallCount++
+		}
+	}
 
-    if overallCount == 0 {
-        return TempState{Min: 0, Max: 0, Average: 0}, nil
-    }
+	if overallCount == 0 {
+		return TempState{Min: 0, Max: 0, Average: 0}, nil
+	}
 
-    return TempState{
-        Min:     math.Round(overallMin*10) / 10,
-        Max:     math.Round(overallMax*10) / 10,
-        Average: math.Round((overallSum/float64(overallCount))*10) / 10,
-    }, nil
+	return TempState{
+		Min:     math.Round(overallMin*10) / 10,
+		Max:     math.Round(overallMax*10) / 10,
+		Average: math.Round((overallSum/float64(overallCount))*10) / 10,
+	}, nil
 }
 
-
-
-//calculating the avg unlock time of the door based on the last 24h
+// calculating the avg unlock time of the door based on the last 24h
 func CalculateAvgUnlock(history []models.Telemetry, now int64) float64 {
 	if len(history) == 0 {
 		return 0
@@ -282,7 +269,6 @@ func CalculateAvgUnlock(history []models.Telemetry, now int64) float64 {
 	var unlockCycle int
 	var unlockTime int64
 
-	
 	for i := len(history) - 1; i >= 0; i-- {
 		record := history[i]
 		state, ok := record.Payload["lock_state"].(string)
@@ -290,45 +276,44 @@ func CalculateAvgUnlock(history []models.Telemetry, now int64) float64 {
 			continue
 		}
 
+		ts := record.Timestamp.Int64()
 		if state == "UNLOCKED" && unlockTime == 0 {
-			unlockTime = record.Timestamp   //door opened, start timer
+			unlockTime = ts
 		} else if state == "LOCKED" && unlockTime > 0 {
-			duration := record.Timestamp - unlockTime //door closed, calculate duration
+			duration := ts - unlockTime
 			if duration > 0 {
 				totalUnlockTime += float64(duration)
 				unlockCycle++
 			}
-			unlockTime = 0         //reset for the next cycle
+			unlockTime = 0
 		}
 	}
 
-	if unlockTime > 0 {  // if door is still open
+	if unlockTime > 0 {
 		duration := now - unlockTime
-		if duration > 0 {   // calculate duration up to now
+		if duration > 0 {
 			totalUnlockTime += float64(duration)
 			unlockCycle++
 		}
 	}
 
 	if unlockCycle == 0 {
-		return 0 
+		return 0
 	}
 
-	// convert time from sec to min and calculate avg
 	avgMinutes := (totalUnlockTime / 60.0) / float64(unlockCycle)
 	return math.Round(avgMinutes*10) / 10
 }
 
 func FormatDoorEvents(history []models.Telemetry) []map[string]interface{} {
 	formatted := make([]map[string]interface{}, 0, len(history))
-	
+
 	for _, record := range history {
 		state, ok := record.Payload["lock_state"].(string)
 		if !ok {
 			continue
 		}
-		
-		// Format the event label
+
 		var label string
 		if state == "UNLOCKED" {
 			label = "Door unlocked"
@@ -336,14 +321,13 @@ func FormatDoorEvents(history []models.Telemetry) []map[string]interface{} {
 			label = "Door locked"
 		}
 
-		// Format the time string (e.g., "8:49 PM")
-		t := time.Unix(record.Timestamp, 0)
+		t := time.Unix(record.Timestamp.Int64(), 0)
 		timeStr := t.Format("3:04 PM")
 
 		formatted = append(formatted, map[string]interface{}{
 			"event":     label,
 			"time":      timeStr,
-			"timestamp": record.Timestamp, 
+			"timestamp": record.Timestamp,
 		})
 	}
 	return formatted
@@ -351,27 +335,28 @@ func FormatDoorEvents(history []models.Telemetry) []map[string]interface{} {
 
 func FormatACEvents(history []models.Telemetry) []map[string]interface{} {
 	formatted := make([]map[string]interface{}, 0, len(history))
-	
+
 	for _, record := range history {
 		state, ok := record.Payload["power_state"].(string)
 		if !ok {
 			continue
 		}
-		
+
 		label := "A/C turned " + state
 
-		t := time.Unix(record.Timestamp, 0)
+		t := time.Unix(record.Timestamp.Int64(), 0)
 		timeStr := t.Format("3:04 PM")
 
 		formatted = append(formatted, map[string]interface{}{
 			"event":     label,
 			"time":      timeStr,
-			"timestamp": record.Timestamp, 
+			"timestamp": record.Timestamp,
 		})
 	}
 	return formatted
 }
-//gas alerts and warnings
+
+// gas alerts and warnings
 func GetGasEvents(history []models.Telemetry) []map[string]interface{} {
 	formatted := make([]map[string]interface{}, 0)
 	now := time.Now().Unix()
@@ -382,9 +367,9 @@ func GetGasEvents(history []models.Telemetry) []map[string]interface{} {
 		}
 		status, _ := record.Payload["status"].(string)
 		alarm, _ := record.Payload["alarm_on"].(bool)
-		
+
 		if status == "SAFE" && !alarm {
-			continue                    //skip normal readings
+			continue
 		}
 
 		description := "Gas level Exceed safe limit"
@@ -400,16 +385,16 @@ func GetGasEvents(history []models.Telemetry) []map[string]interface{} {
 		}
 
 		formatted = append(formatted, map[string]interface{}{
-		"description": description,
+			"description": description,
 			"gas_level":   levelStr,
-			"time":        TimeAgo(record.Timestamp, now),
+			"time":        TimeAgo(record.Timestamp.Int64(), now),
 			"timestamp":   record.Timestamp,
 		})
 	}
 	return formatted
 }
 
-//calculating the total used hours for the last 5 days
+// calculating the total used hours for the last 5 days
 func CalculateACUsage(history []models.Telemetry, now int64, period string) []ChartPoint {
 	if len(history) == 0 {
 		return []ChartPoint{}
@@ -417,47 +402,46 @@ func CalculateACUsage(history []models.Telemetry, now int64, period string) []Ch
 	timeFormat := GetTimeFormat(period)
 	dailyUsage := make(map[string]float64)
 	var onTime int64
-	
-	for i := len(history) - 1; i >= 0; i-- {  //get used intervals
+
+	for i := len(history) - 1; i >= 0; i-- {
 		record := history[i]
 		state, ok := record.Payload["power_state"].(string)
 		if !ok {
 			continue
 		}
 
+		ts := record.Timestamp.Int64()
 		if state == "ON" && onTime == 0 {
-			onTime = record.Timestamp
+			onTime = ts
 		} else if state == "OFF" && onTime > 0 {
-			duration := record.Timestamp - onTime
+			duration := ts - onTime
 			if duration > 0 {
-				dayLabel := time.Unix(onTime, 0).Format(timeFormat) 
+				dayLabel := time.Unix(onTime, 0).Format(timeFormat)
 				dailyUsage[dayLabel] += float64(duration)
 			}
 			onTime = 0
 		}
 	}
 
-	
-	if onTime > 0 {              // if AC is still on
+	if onTime > 0 {
 		duration := now - onTime
 		if duration > 0 {
-			dayLabel := time.Unix(onTime, 0).Format(timeFormat) 
+			dayLabel := time.Unix(onTime, 0).Format(timeFormat)
 			dailyUsage[dayLabel] += float64(duration)
 		}
 	}
-	
+
 	var chartResult []ChartPoint
-	for label, totalSeconds := range dailyUsage {  //convert to hours
+	for label, totalSeconds := range dailyUsage {
 		hours := totalSeconds / 3600.0
 		chartResult = append(chartResult, ChartPoint{
 			Label: label,
-			Value: math.Round(hours*10) / 10, 
+			Value: math.Round(hours*10) / 10,
 		})
 	}
 
 	return chartResult
 }
-
 
 func FormatACTime(seconds int64) string {
 	if seconds <= 0 {
@@ -472,7 +456,7 @@ func FormatACTime(seconds int64) string {
 	return fmt.Sprintf("%dm", minutes)
 }
 
-//calculating ac run time last 24h
+// calculating ac run time last 24h
 func CalculateACRunTime(history []models.Telemetry, now int64) int64 {
 	if len(history) == 0 {
 		return 0
@@ -488,17 +472,18 @@ func CalculateACRunTime(history []models.Telemetry, now int64) int64 {
 			continue
 		}
 
+		ts := record.Timestamp.Int64()
 		if state == "ON" && onTime == 0 {
-			onTime = record.Timestamp   
+			onTime = ts
 		} else if state == "OFF" && onTime > 0 {
-			duration := record.Timestamp - onTime 
+			duration := ts - onTime
 			if duration > 0 {
-				totalSeconds += duration  
+				totalSeconds += duration
 			}
-			onTime = 0 
+			onTime = 0
 		}
 	}
-	
+
 	if onTime > 0 {
 		duration := now - onTime
 		if duration > 0 {
@@ -509,19 +494,17 @@ func CalculateACRunTime(history []models.Telemetry, now int64) int64 {
 	return totalSeconds
 }
 
-
-
-//get alerts by time and severity for entire system (system overview part)
+// get alerts by time and severity for entire system (system overview part)
 func GetAlerts(alertList []models.Alert, period string) map[string][]ChartPoint {
 	timeFormat := GetTimeFormat(period)
 	warningMap := make(map[string]float64)
 	criticalMap := make(map[string]float64)
 
 	for _, alert := range alertList {
-		label := time.Unix(alert.Timestamp, 0).Format(timeFormat)
+		label := time.Unix(alert.Timestamp.Int64(), 0).Format(timeFormat)
 		if alert.Severity == "WARNING" || alert.Severity == "warning" {
 			warningMap[label]++
-		} else if alert.Severity == "CRITICAL" || alert.Severity == "critical"{
+		} else if alert.Severity == "CRITICAL" || alert.Severity == "critical" {
 			criticalMap[label]++
 		}
 	}
@@ -543,18 +526,15 @@ func GetAlerts(alertList []models.Alert, period string) map[string][]ChartPoint 
 	}
 }
 
-
 func CalculateEnergy(acUsage []ChartPoint) []ChartPoint {
 	const dailyPower = 0.132
 	const acPower = 1.5
 
 	var energyChart []ChartPoint
-	
+
 	for _, point := range acUsage {
 		dailyAC := point.Value * acPower
-		
-		totalConsumption := dailyAC+ dailyPower
-
+		totalConsumption := dailyAC + dailyPower
 		energyChart = append(energyChart, ChartPoint{
 			Label: point.Label,
 			Value: math.Round(totalConsumption*10) / 10,
@@ -564,8 +544,7 @@ func CalculateEnergy(acUsage []ChartPoint) []ChartPoint {
 	return energyChart
 }
 
-
-//takes an array of daily ChartPoints and averages them into 4 weeks.
+// takes an array of daily ChartPoints and averages them into 4 weeks.
 func ChunkIntoWeeks(dailyData []ChartPoint) []ChartPoint {
 	if len(dailyData) == 0 {
 		return []ChartPoint{}
@@ -575,12 +554,10 @@ func ChunkIntoWeeks(dailyData []ChartPoint) []ChartPoint {
 	weeklyCounts := make([]int, 4)
 
 	for i, point := range dailyData {
-		// Figure out which week index (0, 1, 2, or 3) this day belongs to
 		weekIndex := i / 7
 		if weekIndex > 3 {
-			weekIndex = 3 // Force days 29, 30, 31 into the final week
+			weekIndex = 3
 		}
-
 		weeklySums[weekIndex] += point.Value
 		weeklyCounts[weekIndex]++
 	}
