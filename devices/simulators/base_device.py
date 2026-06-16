@@ -188,10 +188,10 @@ class BaseDevice(ABC):
             except Exception:
                 pass
 
-            # Subscribe to command topic
-            command_topic = f"devices/{self.config.user_id}/{self.config.device_id}/command"
+            command_topic = f"devices/{self.config.device_id}/commands"
             client.subscribe(command_topic, qos=1)
             logger.debug(f"📨 Subscribed to: {command_topic}")
+            
         else:
             logger.error(f"❌ Connection failed with code {rc}")
             self.status = DeviceStatus.ERROR
@@ -519,7 +519,6 @@ class BaseDevice(ABC):
                 try:
                     telemetry = self.generate_telemetry()
                     self.publish_telemetry(telemetry)
-                    self.update_shadow(self.state)
                     # Wait until next interval or until interrupted
                     self._stop_event.wait(timeout=interval)
                 except Exception as e:
