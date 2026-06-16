@@ -40,7 +40,7 @@ func NewStateStore() (*StateStore, error) {
 	}, nil
 }
 
-//updates live dashboard
+// updates live dashboard — pure upsert, no timestamp guard
 func (s *StateStore) UpdateFromTelemetry(ctx context.Context, tel models.Telemetry) error {
 
 	now := time.Now().Unix()
@@ -61,9 +61,6 @@ func (s *StateStore) UpdateFromTelemetry(ctx context.Context, tel models.Telemet
 				Value: tel.DeviceID,
 			},
 		},
-		ConditionExpression: aws.String(
-			"attribute_not_exists(last_seen_at) OR last_seen_at <= :last_seen",
-		),
 		UpdateExpression: aws.String(`
 			SET
 				#type = :type,
@@ -114,7 +111,7 @@ func ExtractState(deviceType string, payload map[string]interface{}) (string, st
 	return opState, health
 }
 
-//marks the device online for alert-type messages.
+// marks the device online for alert-type messages — pure upsert, no timestamp guard
 func (s *StateStore) UpdateHeartbeat(ctx context.Context, userID, deviceID string) error {
 	now := time.Now().Unix()
 
@@ -124,9 +121,6 @@ func (s *StateStore) UpdateHeartbeat(ctx context.Context, userID, deviceID strin
 			"user_id":   &types.AttributeValueMemberS{Value: userID},
 			"device_id": &types.AttributeValueMemberS{Value: deviceID},
 		},
-		ConditionExpression: aws.String(
-			"attribute_not_exists(last_seen_at) OR last_seen_at <= :last_seen",
-		),
 		UpdateExpression: aws.String(
 			"SET #status = :status, last_seen_at = :last_seen",
 		),
