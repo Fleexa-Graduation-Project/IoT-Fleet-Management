@@ -3,16 +3,16 @@ package ingestion
 import (
 	"context"
 	"errors"
-	"time"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/validation"
 	"github.com/Fleexa-Graduation-Project/Backend/models"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
 )
 
 type Service struct {
@@ -24,7 +24,7 @@ type Service struct {
 }
 
 func (s *Service) HandleRequest(ctx context.Context, event map[string]interface{}) (err error) {
-	start := time.Now()  //start when the rwuest enters the handler
+	start := time.Now()
 	defer func() {
 		if r := recover(); r != nil {
 			s.Logger.Error("CRITICAL: lambda panic recovered", "panic", r)
@@ -39,7 +39,6 @@ func (s *Service) HandleRequest(ctx context.Context, event map[string]interface{
 		)
 	}()
 
-	//validating the message
 	deviceID, messageType, envelope, isBatch, err := validation.ValidateMessage(event)
 	if err != nil {
 		s.logValidationError(err, envelope.DeviceID)
@@ -49,10 +48,10 @@ func (s *Service) HandleRequest(ctx context.Context, event map[string]interface{
 	switch messageType {
 	case "telemetry":
 		return s.handleTelemetry(ctx, deviceID, envelope, isBatch)
-	
+
 	case "alerts":
 		return s.handleAlert(ctx, deviceID, envelope)
-	
+
 	default:
 		return fmt.Errorf("unknown message type: %s", messageType)
 	}
@@ -77,16 +76,16 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 				service.Logger.Warn("skipping invalid item in batch", "device_id", deviceID)
 				continue
 			}
-			 
-			//validating individual item structure
+
 			if err := validation.ValidatePayload(envelope.Type, itemMap); err != nil {
 				service.Logger.Warn("skipping malformed payload in batch", "error", err)
 				continue
 			}
 
-			timestamp := envelope.Timestamp
+			// Start with the envelope-level timestamp; override per-item if present.
+			timestamp := models.EpochTime(envelope.Timestamp)
 			if itemTs, ok := itemMap["ts"].(float64); ok {
-				timestamp = int64(itemTs)
+				timestamp = models.EpochTime(int64(itemTs))
 			}
 
 			t := models.Telemetry{
@@ -99,7 +98,6 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 
 			telemetryList = append(telemetryList, t)
 
-			//select the latest timestamp
 			if latestReading.Timestamp == 0 || t.Timestamp > latestReading.Timestamp {
 				latestReading = t
 			}
@@ -119,7 +117,7 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 	data := models.Telemetry{
 		UserID:    envelope.UserID,
 		DeviceID:  envelope.DeviceID,
-		Timestamp: envelope.Timestamp,
+		Timestamp: models.EpochTime(envelope.Timestamp),
 		Type:      envelope.Type,
 		Payload:   envelope.Payload,
 	}
@@ -144,7 +142,7 @@ func (service *Service) handleAlert(ctx context.Context, deviceID string, envelo
 	alert := models.Alert{
 		UserID:    envelope.UserID,
 		DeviceID:  envelope.DeviceID,
-		Timestamp: envelope.Timestamp,
+		Timestamp: models.EpochTime(envelope.Timestamp),
 		Type:      envelope.Type,
 		Severity:  severity,
 		Payload:   envelope.Payload,
