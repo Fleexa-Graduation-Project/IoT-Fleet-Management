@@ -1,8 +1,6 @@
-
 # orchestrator.py
 import os
 import time
-import uuid
 import random
 
 def build_config_from_env():
@@ -10,16 +8,12 @@ def build_config_from_env():
 
     device_id = os.environ["DEVICE_ID"]
 
-    # Option B: append a short UUID suffix so every container restart gets
-    # a globally-unique client_id.  This prevents AWS IoT Core from
-    # force-evicting a still-running container when a new one starts with
-    # the same device_id (duplicate-clientid disconnect loop, code: 7).
-    # Format: temp-sensor-01-a1b2c3d4  (8 hex chars = low collision risk)
-    # NOTE: the IoT policy's iot:Connect resource must allow a wildcard:
-    #   "arn:aws:iot:*:*:client/temp-sensor-01-*"  (already covered if you
-    #   use "arn:aws:iot:*:*:client/*" in the policy)
-    suffix = uuid.uuid4().hex[:8]
-    mqtt_client_id = f"{device_id}-{suffix}"
+    # The AWS IoT policy uses the policy variable:
+    #   ${iot:Connection.Thing.ThingName}
+    # This means the MQTT client_id MUST exactly match the registered
+    # Thing Name (e.g. "temp-sensor-01"). Any suffix or modification
+    # causes an immediate code-7 disconnect (policy rejection).
+    mqtt_client_id = device_id
 
     return DeviceConfig(
         device_id        = device_id,
@@ -64,9 +58,9 @@ def get_device_class(device_type: str):
 
 
 if __name__ == "__main__":
-    # FIX: honour STARTUP_DELAY so containers don't all hammer AWS IoT Core
-    # simultaneously at boot.  Each device has a deterministic base delay
-    # (set in docker-compose.yml) plus a small random jitter (0–2 s) to
+    # Honour STARTUP_DELAY so containers don't all hammer AWS IoT Core
+    # simultaneously at boot. Each device has a deterministic base delay
+    # (set in docker-compose.yml) plus a small random jitter (0-2 s) to
     # avoid thundering-herd reconnect bursts after a broker-forced disconnect.
     startup_delay = int(os.environ.get("STARTUP_DELAY", 0))
     jitter        = random.uniform(0, 2)
