@@ -172,14 +172,24 @@ func (store *TelemetryStore) GetTelemetryHistory(ctx context.Context, userID, de
 		input.Limit = aws.Int32(limit)
 	}
 
-	result, err := store.Client.Query(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query telemetry history for user_id=%s device_id=%s: %w", userID, deviceID, err)
-	}
-
 	var history []models.Telemetry
-	if err = attributevalue.UnmarshalListOfMaps(result.Items, &history); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal telemetry history for user_id=%s device_id=%s: %w", userID, deviceID, err)
+
+	for {
+		result, err := store.Client.Query(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query telemetry history for user_id=%s device_id=%s: %w", userID, deviceID, err)
+		}
+
+		var page []models.Telemetry
+		if err = attributevalue.UnmarshalListOfMaps(result.Items, &page); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal telemetry history for user_id=%s device_id=%s: %w", userID, deviceID, err)
+		}
+		history = append(history, page...)
+
+		if result.LastEvaluatedKey == nil {
+			break
+		}
+		input.ExclusiveStartKey = result.LastEvaluatedKey
 	}
 
 	return history, nil
