@@ -35,9 +35,7 @@ DEVICES = [
     {"device_id": "temp-sensor-01",   "type": "temp-sensor"},
     {"device_id": "light-sensor-01",  "type": "light-sensor"},
     {"device_id": "gas-sensor-01",    "type": "gas-sensor"},
-    {"device_id": "door-sensor-01",   "type": "door-sensor"},
     {"device_id": "ac-actuator-01",   "type": "ac-actuator"},
-    {"device_id": "door-actuator-01", "type": "door-actuator"},
 ]
 
 # ─── AWS client ───────────────────────────────────────────────────────────────
@@ -83,14 +81,10 @@ def gen_gas_sensor():
 
 
 def gen_door_sensor():
-    """~30% chance of OPEN; intrusion_detected when open AND roll < 0.4."""
-    open_val            = random.random() < 0.30
-    duration_open_secs  = random.randint(5, 300) if open_val else 0
-    intrusion_detected  = open_val and random.random() < 0.40
+    """Door sensor only reports battery level. Door alerts are handled
+    exclusively by the EventBridge-triggered door-watch Lambda."""
     return {
-        "open":                    open_val,
-        "duration_open_seconds":   duration_open_secs,
-        "intrusion_detected":      intrusion_detected,
+        "battery_level": random.randint(20, 100),
     }
 
 
@@ -146,23 +140,7 @@ def build_gas_alert(user_id, device_id, payload, ts):
     }
 
 
-def build_door_alert(user_id, device_id, payload, ts):
-    duration = payload.get("duration_open_seconds", 0)
-    severity = "CRITICAL" if duration > 120 else "WARNING"
-    return {
-        "topic":   f"devices/{user_id}/{device_id}/alerts",
-        "payload": {
-            "user_id":   user_id,
-            "device_id": device_id,
-            "timestamp": ts,
-            "type":      "door-sensor",
-            "payload": {
-                **payload,
-                "severity":    severity,
-                "description": f"Intrusion detected — door open for {duration}s",
-            },
-        },
-    }
+# Door alerts removed — handled exclusively by the door-watch Lambda via EventBridge
 
 # ─── Core publish ─────────────────────────────────────────────────────────────
 
@@ -217,9 +195,7 @@ def run_round():
             alert_event = build_gas_alert(USER_ID, device_id, payload, ts)
             invoke(alert_event, f"{device_id} / alert (gas)")
 
-        elif device_type == "door-sensor" and payload.get("intrusion_detected"):
-            alert_event = build_door_alert(USER_ID, device_id, payload, ts)
-            invoke(alert_event, f"{device_id} / alert (intrusion)")
+        # Door alerts removed — handled exclusively by door-watch Lambda via EventBridge
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 

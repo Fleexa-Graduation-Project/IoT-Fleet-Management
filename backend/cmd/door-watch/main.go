@@ -3,10 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"log/slog"
+	"os"
 
-	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/notifications"
@@ -14,6 +13,7 @@ import (
 	"github.com/Fleexa-Graduation-Project/Backend/internal/users"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
+	"github.com/aws/aws-lambda-go/lambda"
 )
 
 var (

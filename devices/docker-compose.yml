@@ -93,14 +93,14 @@ services:
       MQTT_PORT: "8883"
       PUBLISH_INTERVAL: "30"
 
-  door-locker:
+  door-actuator:
     <<: *device-common
-    container_name: fleexa-door-locker
+    container_name: fleexa-door-actuator
     environment:
       STARTUP_DELAY: "25"
-      DEVICE_ID: door-locker-01
+      DEVICE_ID: door-actuator-01
       DEVICE_TYPE: door_locker
-      DEVICE_NAME: "Door Locker"
+      DEVICE_NAME: "Door Actuator"
       DEVICE_LOCATION: "Main Entrance"
       USER_ID: ${USER_ID}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}

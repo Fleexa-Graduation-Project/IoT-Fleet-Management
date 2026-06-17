@@ -186,36 +186,41 @@ func (store *StateStore) GetAllStates(ctx context.Context, userID string) ([]mod
 
 func (store *StateStore) GetAllOpenDoors(ctx context.Context) ([]models.DeviceState, error) {
 	var states []models.DeviceState
-	var lastEvaluatedKey map[string]types.AttributeValue
 
-	
-	for {
-		input := &dynamodb.QueryInput{
-			TableName:              aws.String(store.TableName),
-			IndexName:              aws.String("OpenDoorsIndex"),
-			KeyConditionExpression: aws.String("operational_state = :open"),
-			ExpressionAttributeValues: map[string]types.AttributeValue{
-				":open": &types.AttributeValueMemberS{Value: "OPEN"},
-			},
-			ExclusiveStartKey: lastEvaluatedKey,
-		}
+	// Query for both "OPEN" (door-sensor) and "UNLOCKED" (door-actuator)
+	searchValues := []string{"OPEN", "UNLOCKED"}
 
-		result, err := store.Client.Query(ctx, input)
-		if err != nil {
-			return nil, fmt.Errorf("failed to query OpenDoorsIndex: %w", err)
-		}
+	for _, opState := range searchValues {
+		var lastEvaluatedKey map[string]types.AttributeValue
 
-		for _, item := range result.Items {
-			var state models.DeviceState
-			if err := attributevalue.UnmarshalMap(item, &state); err != nil {
-				continue
+		for {
+			input := &dynamodb.QueryInput{
+				TableName:              aws.String(store.TableName),
+				IndexName:              aws.String("OpenDoorsIndex"),
+				KeyConditionExpression: aws.String("operational_state = :state"),
+				ExpressionAttributeValues: map[string]types.AttributeValue{
+					":state": &types.AttributeValueMemberS{Value: opState},
+				},
+				ExclusiveStartKey: lastEvaluatedKey,
 			}
-			states = append(states, state)
-		}
 
-		lastEvaluatedKey = result.LastEvaluatedKey
-		if lastEvaluatedKey == nil {
-			break
+			result, err := store.Client.Query(ctx, input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to query OpenDoorsIndex for %s: %w", opState, err)
+			}
+
+			for _, item := range result.Items {
+				var state models.DeviceState
+				if err := attributevalue.UnmarshalMap(item, &state); err != nil {
+					continue
+				}
+				states = append(states, state)
+			}
+
+			lastEvaluatedKey = result.LastEvaluatedKey
+			if lastEvaluatedKey == nil {
+				break
+			}
 		}
 	}
 

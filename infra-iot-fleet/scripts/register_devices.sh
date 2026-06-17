@@ -22,7 +22,7 @@ DEVICES=(
   "gas-sensor-01"
   "door-sensor-01"
   "ac-curtain-01"
-  "door-locker-01"
+  "door-actuator-01"
 )
 
 for DEVICE_ID in "${DEVICES[@]}"; do

@@ -145,6 +145,6 @@ resource "aws_iam_role_policy" "api_lambda_permissions" {
         ]
         Resource = "*"
       }
-    ]
+  ]
   })
 }

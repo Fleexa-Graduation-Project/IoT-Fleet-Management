@@ -516,7 +516,7 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		"parameters": req.Parameters,
 	}
 
-	topic := fmt.Sprintf("devices/%s/%s/command", userID, deviceID)
+	topic := fmt.Sprintf("devices/%s/%s/commands", userID, deviceID)
 	err := handler.IoTPublisher.Publish(context.Request.Context(), topic, mqttPayload)
 	if err != nil {
 		slog.Error("failed to publish command to iot Core", "device_id", deviceID, "error", err)

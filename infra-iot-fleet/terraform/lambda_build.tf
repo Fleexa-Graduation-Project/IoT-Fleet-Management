@@ -57,10 +57,40 @@ module "iot_ingestion_lambda" {
     STATE_TABLE          = "${var.project_name}-${var.environment}-device-state"
     COMMANDS_TABLE       = "${var.project_name}-${var.environment}-commands"
     USERS_TABLE          = "iot-fleet_Users"
-    COGNITO_USER_POOL_ID = var.cognito_user_pool_id
-    COGNITO_CLIENT_ID    = var.cognito_client_id
+    COGNITO_USER_POOL_ID = module.cognito.user_pool_id
+    COGNITO_CLIENT_ID    = module.cognito.client_id
     FIREBASE_CREDENTIALS = "./firebase-adminsdk.json"
   }
 
   depends_on = [data.archive_file.lambda_zip]
+}
+
+data "archive_file" "aggregator_lambda_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../backend/scripts/daily_aggregator.py"
+  output_path = "${path.module}/../../backend/dist/aggregator/daily_aggregator.zip"
+}
+
+resource "null_resource" "build_door_watch_lambda" {
+  triggers = {
+    always_run = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      mkdir -p ${path.module}/../../backend/dist/door-watch
+      cd ${path.module}/../../backend
+      GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o dist/door-watch/bootstrap cmd/door-watch/main.go
+      chmod +x dist/door-watch/bootstrap
+    EOT
+  }
+}
+
+data "archive_file" "door_watch_lambda_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../backend/dist/door-watch/bootstrap"
+  output_path = "${path.module}/../../backend/dist/door-watch/door-watch.zip"
+
+  depends_on = [null_resource.build_door_watch_lambda]
 }

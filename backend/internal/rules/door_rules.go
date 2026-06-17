@@ -41,25 +41,13 @@ func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
 		severity := ""
 		description := ""
 
-		// WARNING at 7 mins, CRITICAL at 15 mins, then a reminder if still open
-		thresholds := []struct {
-			minutes     float64
-			severity    string
-			description string
-		}{
-			{7, "WARNING", "Warning: The door has been left open."},
-			{15, "CRITICAL", "Critical: Door open for 15 minutes. Please secure it."},
-			{30, "CRITICAL", "Critical: Door still open after 30 minutes."},
-			{60, "CRITICAL", "Critical: Door open for 1 hour. Immediate action required."},
-			{120, "CRITICAL", "Critical: Door open for 2 hours. Possible security breach."},
-		}
-
-		for _, t := range thresholds {
-			if minutesOpen >= t.minutes && minutesOpen < t.minutes+1.0 {
-				severity = t.severity
-				description = t.description
-				break
-			}
+	// WARNING at 1 min, CRITICAL at 2 mins (cumulative, no gaps)
+		if minutesOpen >= 2.0 {
+			severity = "CRITICAL"
+			description = "Critical: Door unlocked for 2+ minutes. Please secure it immediately."
+		} else if minutesOpen >= 1.0 {
+			severity = "WARNING"
+			description = "Warning: The door has been unlocked for 1 minute."
 		}
 
 		if severity != "" {

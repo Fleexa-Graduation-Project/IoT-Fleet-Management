@@ -9,17 +9,7 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "cognito_user_pool_id" {
-  type        = string
-  description = "Cognito User Pool ID"
-  default     = ""
-}
 
-variable "cognito_client_id" {
-  type        = string
-  description = "Cognito Client ID"
-  default     = ""
-}
 
 variable "bucket_name" {
   type        = string
@@ -60,3 +50,5 @@ variable "users_table_name" {
   type        = string
   default     = "iot-fleet_Users"
 }
+
+

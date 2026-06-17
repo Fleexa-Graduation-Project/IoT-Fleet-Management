@@ -36,6 +36,18 @@ resource "aws_dynamodb_table" "device_state" {
     name = "device_id"
     type = "S"
   }
+
+  attribute {
+    name = "operational_state"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "OpenDoorsIndex"
+    hash_key           = "operational_state"
+    range_key          = "device_id"
+    projection_type    = "ALL"
+  }
 }
 
 resource "aws_dynamodb_table" "alerts" {
@@ -43,6 +55,7 @@ resource "aws_dynamodb_table" "alerts" {
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "alert_id"
   range_key    = "timestamp"
+
   attribute {
     name = "alert_id"
     type = "S"
@@ -51,6 +64,18 @@ resource "aws_dynamodb_table" "alerts" {
     name = "timestamp"
     type = "N"
   }
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name               = "UserAlertsIndex"
+    hash_key           = "user_id"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
+  }
+
   ttl {
     attribute_name = "ttl"
     enabled        = true

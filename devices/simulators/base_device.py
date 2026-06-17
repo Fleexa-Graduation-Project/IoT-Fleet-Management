@@ -188,7 +188,7 @@ class BaseDevice(ABC):
             except Exception:
                 pass
 
-            command_topic = f"devices/{self.config.device_id}/commands"
+            command_topic = f"devices/{self.config.user_id}/{self.config.device_id}/commands"
             client.subscribe(command_topic, qos=1)
             logger.debug(f"📨 Subscribed to: {command_topic}")
             
@@ -229,6 +229,14 @@ class BaseDevice(ABC):
             # Validate command schema
             if self.validator.validate_command(payload):
                 self.handle_command(payload)
+                
+                # Immediately publish telemetry to update the backend state 
+                # so the frontend sees the new state right away instead of waiting 30s.
+                try:
+                    telemetry = self.generate_telemetry()
+                    self.publish_telemetry(telemetry)
+                except Exception as e:
+                    logger.error(f"❌ Failed to publish telemetry after command: {e}")
             else:
                 logger.error(f"❌ Invalid command format: {payload}")
         except json.JSONDecodeError as e:
@@ -352,7 +360,7 @@ class BaseDevice(ABC):
             telemetry_payload: Device-specific sensor data
         """
         try:
-            topic = f"devices/{self.config.device_id}/telemetry"
+            topic = f"devices/{self.config.user_id}/{self.config.device_id}/telemetry"
 
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
@@ -406,7 +414,7 @@ class BaseDevice(ABC):
             additional_data: Optional extra alert data
         """
         try:
-            topic = f"devices/{self.config.device_id}/alerts"
+            topic = f"devices/{self.config.user_id}/{self.config.device_id}/alerts"
 
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
