@@ -134,7 +134,7 @@ func (handler *DeviceHandler) showACStats(ctx context.Context, userID string, pa
 		}
 	}
 	payload["inside_temp"] = insideTemp
-	payload["outside_temp"] = 36.0 // demo value — replace with external API later
+	payload["outside_temp"] = getOutsideTemp()
 
 	if timeremaining, ok := payload["timer_end_timestamp"].(float64); ok {
 		timerEnd := int64(timeremaining)
@@ -504,6 +504,39 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 	})
 }
 
+// buildACStateUpdate maps each AC command action to the payload fields that
+// should be written to DynamoDB immediately after the MQTT publish, so the
+// mobile sees fresh state on the next GET without waiting for device telemetry.
+func buildACStateUpdate(action string, params map[string]interface{}, now int64) (map[string]interface{}, string) {
+	fields := map[string]interface{}{}
+	opState := ""
+
+	switch action {
+	case "set_power":
+		if ps, ok := params["power_state"].(string); ok {
+			fields["power_state"] = ps
+			opState = ps
+			if ps == "ON" {
+				fields["last_turned_on"] = now
+			}
+		}
+	case "set_temperature":
+		if temp, ok := params["target_temp"].(float64); ok {
+			fields["target_temp"] = temp
+		}
+	case "set_mode":
+		if mode, ok := params["mode"].(string); ok {
+			fields["mode"] = mode
+		}
+	case "set_timer":
+		if hours, ok := params["duration_hours"].(float64); ok && hours > 0 {
+			fields["timer_end_timestamp"] = now + int64(hours*3600)
+		}
+	}
+
+	return fields, opState
+}
+
 // POST /api/v1/devices/:id/commands
 func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 	userID := context.GetString("user_id")
@@ -531,6 +564,16 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 	}
 
 	now := time.Now().Unix()
+
+	acFields, opState := buildACStateUpdate(req.Action, req.Parameters, now)
+	if len(acFields) > 0 {
+		if updateErr := handler.StateStore.UpdateACFields(
+			context.Request.Context(), userID, deviceID, acFields, opState,
+		); updateErr != nil {
+			slog.Warn("AC optimistic state update failed",
+				"device_id", deviceID, "action", req.Action, "error", updateErr)
+		}
+	}
 
 	commandRecord := models.Command{
 		RequestID:  requestID,
