@@ -15,9 +15,17 @@ def build_config_from_env():
     # causes an immediate code-7 disconnect (policy rejection).
     mqtt_client_id = device_id
 
+    # Pick a random user_id if USER_IDS is provided, else fallback to single USER_ID
+    user_ids_str = os.environ.get("USER_IDS", "")
+    if user_ids_str:
+        user_ids = [uid.strip() for uid in user_ids_str.split(",") if uid.strip()]
+        user_id = random.choice(user_ids) if user_ids else os.environ.get("USER_ID", "")
+    else:
+        user_id = os.environ.get("USER_ID", "")
+
     return DeviceConfig(
         device_id        = device_id,
-        user_id          = os.environ["USER_ID"],
+        user_id          = user_id,
         device_name      = os.environ["DEVICE_NAME"],
         device_type      = os.environ["DEVICE_TYPE"],
         location         = os.environ.get("DEVICE_LOCATION", "Unknown"),
