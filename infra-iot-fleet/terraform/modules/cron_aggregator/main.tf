@@ -41,8 +41,8 @@ resource "aws_iam_role_policy" "aggregator_lambda_permissions" {
         Resource = "arn:aws:s3:::${var.bucket_name}/*"
       },
       {
-        Effect = "Allow"
-        Action = "s3:ListBucket"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
         Resource = "arn:aws:s3:::${var.bucket_name}"
       }
     ]

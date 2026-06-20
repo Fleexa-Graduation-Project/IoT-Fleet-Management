@@ -43,10 +43,10 @@ resource "aws_dynamodb_table" "device_state" {
   }
 
   global_secondary_index {
-    name               = "OpenDoorsIndex"
-    hash_key           = "operational_state"
-    range_key          = "device_id"
-    projection_type    = "ALL"
+    name            = "OpenDoorsIndex"
+    hash_key        = "operational_state"
+    range_key       = "device_id"
+    projection_type = "ALL"
   }
 }
 
