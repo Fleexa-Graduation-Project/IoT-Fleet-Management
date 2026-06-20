@@ -13,10 +13,10 @@ This roadmap outlines the past achievements, current work, and future vision for
 ## Phase 2: Advanced Intelligence & UI (Current) 🚧
 - [x] Dynamic AWS User generation and association from DynamoDB.
 - [x] Escalating Alerts Engine (Time-decay algorithms for open doors).
-- [ ] Complete Flutter Mobile Application for Real-Time monitoring.
-- [ ] Real-time WebSocket connection to API Gateway for instant dashboard updates.
+- [x] Complete Flutter Mobile Application for Real-Time monitoring.
+- [x] Real-time WebSocket connection to API Gateway for instant dashboard updates.
 - [ ] Over-the-Air (OTA) firmware update orchestration for physical devices.
-- [ ] User role-based access control (RBAC) via Cognito Custom Attributes.
+- [x] User role-based access control (RBAC) via Cognito Custom Attributes.
 
 ## Phase 3: Analytics & Machine Learning (Future) 🔮
 - [ ] AWS Athena and QuickSight integration with our S3 Data Lake for business intelligence dashboards.

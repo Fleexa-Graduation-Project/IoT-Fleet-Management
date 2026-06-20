@@ -114,7 +114,7 @@ resource "aws_iam_role_policy" "api_lambda_permissions" {
         Effect = "Allow"
         Action = [
           "dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem",
-          "dynamodb:Query",   "dynamodb:Scan",    "dynamodb:DeleteItem"
+          "dynamodb:Query", "dynamodb:Scan", "dynamodb:DeleteItem"
         ]
         Resource = "*"
       },
@@ -145,6 +145,6 @@ resource "aws_iam_role_policy" "api_lambda_permissions" {
         ]
         Resource = "*"
       }
-  ]
+    ]
   })
 }
