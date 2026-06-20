@@ -17,7 +17,7 @@ module "api_gateway" {
   aws_region           = var.aws_region
   cognito_user_pool_id = module.cognito.user_pool_id
   cognito_client_id    = module.cognito.client_id
-  bucket_name          = var.bucket_name
+  bucket_name          = module.s3.bucket_id
   iot_endpoint         = var.iot_endpoint
   users_table_name     = var.users_table_name
 }

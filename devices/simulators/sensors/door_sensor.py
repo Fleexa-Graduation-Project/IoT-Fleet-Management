@@ -42,6 +42,7 @@ class DoorSensor(BaseDevice):
             "duration_open_seconds": self.open_duration,
             "intrusion_detected": self.intrusion_detected,
             "last_change": self.last_change,
+            "battery_level": round(self.battery_level, 1),
         }
 
     def handle_command(self, command: Dict[str, Any]):

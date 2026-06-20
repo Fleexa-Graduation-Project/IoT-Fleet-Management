@@ -2,7 +2,6 @@ package rules
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -42,16 +41,14 @@ func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
 		severity := ""
 		description := ""
 
-		// WARNING at minute 1, CRITICAL at 2, 4, 8, 16 — doubles each time, stops at 16
+		// WARNING at minute 1, CRITICAL at minute 2
 		mins := int(minutesOpen)
-		isPowerOfTwo := mins > 0 && (mins&(mins-1)) == 0
-
 		if mins == 1 {
 			severity = "WARNING"
 			description = "Warning: The door has been unlocked for 1 minute."
-		} else if mins >= 2 && mins <= 16 && isPowerOfTwo {
+		} else if mins == 2 {
 			severity = "CRITICAL"
-			description = fmt.Sprintf("Critical: Door unlocked for %d minutes. Please secure it.", mins)
+			description = "Critical: Door unlocked for 2 minutes. Please secure it."
 		}
 
 		if severity != "" {
