@@ -159,18 +159,25 @@ Follow these instructions to provision the environment in your AWS account and l
 
 Our simulators dynamically generate real telemetry and act upon cloud commands.
 
-1. Expose your AWS credentials so the simulators can dynamically fetch users from DynamoDB:
-   ```bash
-   export AWS_ACCESS_KEY_ID="your-access-key"
-   export AWS_SECRET_ACCESS_KEY="your-secret-key"
-   export AWS_REGION="us-east-1"
-   ```
-2. Build and start the simulator containers:
+1. Navigate to the `devices` directory and create a `.env` file from the example:
    ```bash
    cd devices
+   cp .env.example .env
+   ```
+2. Open the `.env` file and securely add your AWS credentials so the simulators can dynamically fetch test users from DynamoDB:
+   ```text
+   # devices/.env
+   AWS_ACCESS_KEY_ID=your-access-key
+   AWS_SECRET_ACCESS_KEY=your-secret-key
+   AWS_REGION=us-east-1
+   ```
+   *(Note: The `.env` file is included in `.gitignore` to prevent accidental credential leaks).*
+
+3. Build and start the simulator containers:
+   ```bash
    docker compose up --build -d
    ```
-3. Follow the live simulator telemetry generation:
+4. Follow the live simulator telemetry generation:
    ```bash
    docker compose logs -f
    ```
