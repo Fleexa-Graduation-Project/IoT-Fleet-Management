@@ -10,3 +10,5 @@ backend/*.exe
 # Gradle cache (mobile)
 mobile/.gradle/
 
+# AWS IoT Certificates
+devices/certs/
