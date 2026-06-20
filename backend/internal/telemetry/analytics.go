@@ -382,6 +382,9 @@ func GetGasEvents(history []models.Telemetry) []map[string]interface{} {
 			levelStr = fmt.Sprintf("%.0f PPM", val)
 		} else if intVal, ok := record.Payload["gas_level"].(int); ok {
 			levelStr = fmt.Sprintf("%d PPM", intVal)
+		} else if strVal, ok := record.Payload["gas_level"].(string); 
+		ok {
+			levelStr = strVal
 		}
 
 		formatted = append(formatted, map[string]interface{}{

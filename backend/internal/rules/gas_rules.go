@@ -2,7 +2,6 @@ package rules
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -16,11 +15,11 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, userID, deviceID strin
 
 	if alarmOn || status == "WARNING" || status == "CRITICAL" {
 
-		ppmLevel := "Unknown"
+		var gasLevel float64
 		if val, ok := payload["gas_level"].(float64); ok {
-			ppmLevel = fmt.Sprintf("%.0f PPM", val)
+			gasLevel = val
 		} else if intVal, ok := payload["gas_level"].(int); ok {
-			ppmLevel = fmt.Sprintf("%d PPM", intVal)
+			gasLevel = float64(intVal)
 		}
 
 		severity := "CRITICAL"
@@ -38,7 +37,7 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, userID, deviceID strin
 			Timestamp: models.EpochTime(time.Now().Unix()),
 			Payload: map[string]interface{}{
 				"description": description,
-				"gas_level":   ppmLevel,
+				"gas_level":   gasLevel,
 			},
 		})
 

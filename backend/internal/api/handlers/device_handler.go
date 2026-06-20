@@ -233,6 +233,9 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 
 // getMonthlyData: fetch S3 chart data for last 30 days, merging previous and current month
 func (handler *DeviceHandler) getMonthlyData(ctx context.Context, userID, deviceID string) []telemetry.ChartPoint {
+	if handler.S3Fetcher == nil {
+		return []telemetry.ChartPoint{}
+	}
 	now := time.Now()
 	thirtyDaysAgo := now.AddDate(0, 0, -30)
 
@@ -276,6 +279,9 @@ func (handler *DeviceHandler) getMonthlyData(ctx context.Context, userID, device
 }
 
 func (handler *DeviceHandler) getMonthlyAlerts(ctx context.Context, userID string) []telemetry.AlertChartPoint {
+	if handler.S3Fetcher == nil {
+		return []telemetry.AlertChartPoint{}
+	}
 	now := time.Now()
 	thirtyDaysAgo := now.AddDate(0, 0, -30)
 
