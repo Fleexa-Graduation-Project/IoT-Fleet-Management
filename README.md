@@ -1,19 +1,19 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/Fleexa-Graduation-Project/IoT-Fleet-Management/main/docs/assets/logo-placeholder.png" alt="Logo" width="120" height="120">
 
-  <h1 align="center">🌐 Fleexa IoT Fleet Management</h1>
+  <h1 align="center">Fleexa IoT Fleet Management</h1>
 
   <p align="center">
     <strong>A highly scalable, real-time IoT fleet management platform designed to monitor, analyze, and control smart devices at scale.</strong>
     <br />
     <br />
-    <a href="#-architecture-overview">Architecture</a>
+    <a href="#architecture-overview">Architecture</a>
     ·
-    <a href="#-core-features">Features</a>
+    <a href="#core-features">Features</a>
     ·
-    <a href="#-getting-started">Getting Started</a>
+    <a href="#getting-started">Getting Started</a>
     ·
-    <a href="#-device-catalog">Device Catalog</a>
+    <a href="#device-catalog">Device Catalog</a>
   </p>
 </div>
 
@@ -30,56 +30,56 @@
 
 ---
 
-## 📖 About The Project
+## About The Project
 
-The **Fleexa IoT Fleet Management** platform acts as the brain for smart ecosystems. Whether deployed in industrial warehouses, smart homes, or commercial buildings, this platform allows users to ingest millions of data points, dynamically assess risk through intelligent rules, and control physical actuators seamlessly from the cloud.
+The **Fleexa IoT Fleet Management** platform acts as the core for smart ecosystems. Whether deployed in industrial warehouses, smart homes, or commercial buildings, this platform allows administrators to ingest millions of data points, dynamically assess risk through intelligent rules, and control physical actuators seamlessly from the cloud.
 
-Built from the ground up utilizing a **Serverless-First** approach on AWS, the system requires virtually no operational overhead while remaining highly available and scalable.
+Built from the ground up utilizing a **Serverless-First** approach on AWS, the system requires minimal operational overhead while remaining highly available and scalable.
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 > **Note:** Place an animated GIF or Draw.io architecture diagram in `docs/assets/architecture.gif` for a visual representation.
 
 ![Architecture Diagram](https://raw.githubusercontent.com/Fleexa-Graduation-Project/IoT-Fleet-Management/main/docs/assets/architecture-placeholder.png)
 
-### 🔄 The Data Flow
+### The Data Flow
 1. **Edge Simulation & Connectivity**: Dockerized Python simulators act as the edge devices. They authenticate natively with **AWS IoT Core** using strict Mutual TLS (mTLS) certificates and IoT Policies.
 2. **Telemetry & Alerting Engine**: IoT Core Rules securely route incoming MQTT payloads to dedicated **AWS Lambda processors** written in high-performance Go.
-3. **Smart Rule Evaluation**: The Go backend evaluates the data (e.g., *Is the temperature too high? Has the door been open for 4+ minutes?*) and triggers an **Escalating Alerts Engine**.
+3. **Smart Rule Evaluation**: The Go backend evaluates the data (e.g., verifying safe temperature thresholds or monitoring prolonged door access) and triggers an **Escalating Alerts Engine**.
 4. **Data Persistence**: Processed states, telemetry histories, and commands are dispatched to heavily partitioned **Amazon DynamoDB** tables.
 5. **Analytics Data Lake**: High-volume metrics are piped into an **Amazon S3 Data Lake** for long-term analytical queries.
 6. **Client API & Security**: Cross-platform clients (e.g., Flutter mobile apps) authenticate via **Amazon Cognito**, securely accessing real-time overviews and dispatching control commands via **Amazon API Gateway**.
 
 ---
 
-## ✨ Core Features
+## Core Features
 
-* 🚀 **Real-Time Telemetry & Control**: Bi-directional MQTT communication with sub-second latency between edge devices and the cloud.
-* 🚨 **Escalating Alerts Engine**: Smart alerting rules. For example, a Door left open for 1m, 2m, 4m, 8m, and 16m triggers exponentially escalating push notifications.
-* 👥 **Dynamic User Association**: Simulators authenticate with AWS to dynamically scan DynamoDB for authorized users, mapping physical devices to specific user accounts seamlessly.
-* 🛠️ **Infrastructure as Code (IaC)**: Zero-click environment replication via robust, modular Terraform configurations. 
-* ☁️ **Serverless First**: Powered entirely by AWS managed services (IoT Core, Lambda, API Gateway, DynamoDB) maximizing cost-efficiency and minimizing operational overhead.
+* **Real-Time Telemetry & Control**: Bi-directional MQTT communication with sub-second latency between edge devices and the cloud.
+* **Escalating Alerts Engine**: Smart alerting rules. For example, a Door left open for 1m, 2m, 4m, 8m, and 16m triggers exponentially escalating push notifications.
+* **Dynamic User Association**: Simulators authenticate with AWS to dynamically scan DynamoDB for authorized users, mapping physical devices to specific user accounts seamlessly.
+* **Infrastructure as Code (IaC)**: Automated environment replication via robust, modular Terraform configurations. 
+* **Serverless First**: Powered entirely by AWS managed services (IoT Core, Lambda, API Gateway, DynamoDB) maximizing cost-efficiency and minimizing operational overhead.
 
 ---
 
-## 📱 Device Catalog
+## Device Catalog
 
 Our simulation engine dynamically supports multiple real-world sensor profiles:
 
 | Device Type | Protocol | Data Sent | Example Triggers |
 | :--- | :--- | :--- | :--- |
-| 🌡️ **Temperature Sensor** | MQTT | Temp (°C), Humidity, Battery | Triggers alerts if Temp > 30°C or < 18°C. |
-| 🚪 **Door Sensor** | MQTT | Open/Closed Status, Intrusion | Triggers escalating alerts if left open too long. |
-| 💨 **Gas Sensor** | MQTT | Smoke/CO2 Levels, Alarm | Emits critical alarms on abnormal gas levels. |
-| ☀️ **Light Sensor** | MQTT | Lux levels, Time of Day | Used to automate routines. |
-| 🔒 **Door Actuator** | MQTT | Lock/Unlock Commands | Cloud-controllable mechanical lock. |
-| ❄️ **AC/Curtain Actuator** | MQTT | Power State, Mode | Cloud-controllable relay for HVAC systems. |
+| **Temperature Sensor** | MQTT | Temp (°C), Humidity, Battery | Triggers alerts if Temp > 30°C or < 18°C. |
+| **Door Sensor** | MQTT | Open/Closed Status, Intrusion | Triggers escalating alerts if left open too long. |
+| **Gas Sensor** | MQTT | Smoke/CO2 Levels, Alarm | Emits critical alarms on abnormal gas levels. |
+| **Light Sensor** | MQTT | Lux levels, Time of Day | Used to automate routines. |
+| **Door Actuator** | MQTT | Lock/Unlock Commands | Cloud-controllable mechanical lock. |
+| **AC/Curtain Actuator** | MQTT | Power State, Mode | Cloud-controllable relay for HVAC systems. |
 
 ---
 
-## 🗄️ Database Schema (DynamoDB)
+## Database Schema (DynamoDB)
 
 Data is strictly partitioned across optimized NoSQL tables:
 - **`Users`**: Holds Cognito IDs, preferences, and FCM tokens for push notifications.
@@ -90,30 +90,44 @@ Data is strictly partitioned across optimized NoSQL tables:
 
 ---
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```text
 IoT-Fleet-Management/
-├── backend/                  # Go microservices, lambda processors, escalating rules engine
-├── devices/                  # Python device simulators, Dockerfiles, dynamic orchestrator
-├── infra-iot-fleet/          # Terraform AWS IaC modules (S3, API Gateway, IoT Core)
-├── docs/                     # MQTT schemas, architecture assets, and documentation
+├── backend/                  # Go microservices and rules engine
+│   ├── cmd/                  # Entrypoints (api-service, door-watch, iot-ingestion)
+│   ├── docs/                 # Architecture, database, and API documentation
+│   ├── internal/             # Core domain logic (alerts, telemetry, users, auth)
+│   ├── models/               # Shared data models and structs
+│   └── pkg/                  # Shared utilities (db, logger)
+├── design/                   # UI/UX design assets, wireframes, and fonts
+├── devices/                  # Python device simulators
+│   ├── certs/                # X.509 device certificates for AWS IoT Core mTLS
+│   ├── simulators/           # Python simulation scripts (sensors and actuators)
+│   └── tests/                # Unit and integration tests for simulators
+├── docs/                     # General project documentation and setup guides
+├── infra-iot-fleet/          # AWS Infrastructure as Code
+│   └── terraform/            # Terraform modules (api_gateway, cognito, dynamodb)
+├── mobile/                   # Flutter mobile application
+│   ├── lib/                  # Source code (providers, screens, services, widgets)
+│   └── test/                 # Mobile application tests
+├── monitoring/               # CloudWatch dashboards and logging configurations
 ├── .github/workflows/        # Automated CI/CD pipelines
-└── README.md                 # You are here!
+└── README.md                 # Project overview
 ```
 
 ---
 
-## 🔐 Security & Authentication
+## Security & Authentication
 
-Security is baked in at every layer:
+Security is implemented natively at every layer:
 * **Edge Devices**: Hardware authenticates using X.509 Certificates (mTLS). IoT Policies strictly limit what topics a device can publish to based on its `ThingName`.
 * **Mobile/Web Clients**: End-users authenticate via Amazon Cognito. API Gateway uses Cognito Authorizers to validate JWT tokens before fulfilling REST requests.
 * **Cloud Infrastructure**: Principle of least privilege enforced via IAM execution roles generated strictly by Terraform.
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 Follow these instructions to provision the environment in your AWS account and launch the simulators.
 
@@ -139,7 +153,7 @@ Follow these instructions to provision the environment in your AWS account and l
    ```bash
    terraform apply -var="aws_region=us-east-1"
    ```
-   *(Terraform will safely output your new IoT Core Endpoint, API Gateway URL, and Cognito details upon completion).*
+   *(Terraform will output your new IoT Core Endpoint, API Gateway URL, and Cognito details upon completion).*
 
 ### 2. Running the Device Simulators (Docker)
 
@@ -163,9 +177,9 @@ Our simulators dynamically generate real telemetry and act upon cloud commands.
 
 ---
 
-## 🤖 CI/CD Pipeline Workflow
+## CI/CD Pipeline Workflow
 
-This project heavily utilizes **GitHub Actions** to enforce code quality and zero-downtime deployments.
+This project utilizes **GitHub Actions** to enforce code quality and zero-downtime deployments.
 
 1. **Test Job**: Runs `go test ./...` on the backend and Python `pytest` for the IoT edge schemas.
 2. **Docker Build Job**: Validates that edge device container images build successfully.
@@ -175,8 +189,8 @@ This project heavily utilizes **GitHub Actions** to enforce code quality and zer
 
 ---
 
-## 🤝 Contributing
-Contributions are what make the open-source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+## Contributing
+Contributions are what make the open-source community an amazing place to learn, inspire, and create. Any contributions you make are greatly appreciated.
 
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
@@ -186,7 +200,7 @@ Contributions are what make the open-source community such an amazing place to l
 
 ---
 
-## 📝 License
+## License
 Distributed under the MIT License. See `LICENSE` for more information.
 
-<p align="right"><a href="#-fleexa-iot-fleet-management">Back to top ⬆️</a></p>
+<p align="right"><a href="#fleexa-iot-fleet-management">Back to top</a></p>
