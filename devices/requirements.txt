@@ -1,5 +1,5 @@
 paho-mqtt==2.1.0
-jsonschema==4.26.0
+jsonschema==4.26.0d
 python-dateutil==2.9.0.post0
 pytest==9.0.3
 pytest-cov==6.1.0

@@ -71,7 +71,7 @@ resource "aws_lambda_function" "aggregator_lambda" {
 resource "aws_cloudwatch_event_rule" "every_24_hours" {
   name                = "${var.project_name}-${var.environment}-daily-aggregation"
   description         = "Trigger IoT daily aggregation every 24 hours"
-  schedule_expression = "rate(24 hours)"
+  schedule_expression = "cron(5 0 * * ? *)"
 }
 
 resource "aws_cloudwatch_event_target" "aggregator_target" {
