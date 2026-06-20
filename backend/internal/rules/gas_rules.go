@@ -44,7 +44,7 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, userID, deviceID strin
 		if err != nil {
 			slog.Error("failed to save gas alert to db", "error", err, "user_id", userID, "device_id", deviceID)
 		} else {
-			slog.Error("gas alert triggered!", "user_id", userID, "device_id", deviceID, "severity", severity)
+			slog.Warn("gas alert triggered", "user_id", userID, "device_id", deviceID, "severity", severity)
 			engine.Notify(ctx, userID, severity, "Gas Alert", description)
 		}
 	}

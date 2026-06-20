@@ -19,6 +19,12 @@ def decimal_default(obj):
         return float(obj)
     raise TypeError
 
+def safe_float(val, default=0.0):
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
 def update_s3_chart(s3_key, day_label, new_entry):
     chart_data = []
     try:
@@ -86,7 +92,7 @@ def lambda_handler(_event, _context):
         daily_value = None
         if device_type in ["temp-sensor", "gas-sensor", "light-sensor"]:
             metric_key  = "temp" if device_type == "temp-sensor" else ("gas_level" if device_type == "gas-sensor" else "light_level")
-            total       = sum(float(item['payload'].get(metric_key, 0)) for item in items if metric_key in item['payload'])
+            total       = sum(safe_float(item['payload'].get(metric_key, 0)) for item in items if metric_key in item['payload'])
             daily_value = round(total / len(items), 1) if items else 0.0
 
         elif device_type == "ac-actuator":
