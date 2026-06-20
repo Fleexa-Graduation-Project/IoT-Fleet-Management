@@ -78,6 +78,7 @@ func (store *AlertStore) GetAlertsByDevice(ctx context.Context, userID, deviceID
 
 	input := &dynamodb.QueryInput{
 		TableName:              aws.String(store.TableName),
+		IndexName:              aws.String("DeviceAlertsIndex"),
 		KeyConditionExpression: aws.String("user_device_id = :key"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":key": &types.AttributeValueMemberS{Value: buildUserDeviceKey(userID, deviceID)},

@@ -68,12 +68,23 @@ resource "aws_dynamodb_table" "alerts" {
     name = "user_id"
     type = "S"
   }
+  attribute {
+    name = "user_device_id"
+    type = "S"
+  }
 
   global_secondary_index {
-    name               = "UserAlertsIndex"
-    hash_key           = "user_id"
-    range_key          = "timestamp"
-    projection_type    = "ALL"
+    name            = "UserAlertsIndex"
+    hash_key        = "user_id"
+    range_key       = "timestamp"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "DeviceAlertsIndex"
+    hash_key        = "user_device_id"
+    range_key       = "timestamp"
+    projection_type = "ALL"
   }
 
   ttl {
