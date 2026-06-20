@@ -8,6 +8,7 @@ x-device-common: &device-common
   volumes:
     - ./certs:/app/certs:ro
     - ./logs:/app/logs
+    - ${HOME}/.aws:/root/.aws:ro
   networks:
     - iot-network
   environment:
