@@ -12,14 +12,33 @@ def build_config_from_env():
     #   ${iot:Connection.Thing.ThingName}
     # This means the MQTT client_id MUST exactly match the registered
     # Thing Name (e.g. "temp-sensor-01"). Any suffix or modification
-    # causes an immediate code-7 disconnect (policy rejection).
     mqtt_client_id = device_id
 
-    # Pick a random user_id if USER_IDS is provided, else fallback to single USER_ID
-    user_ids_str = os.environ.get("USER_IDS", "")
-    if user_ids_str:
-        user_ids = [uid.strip() for uid in user_ids_str.split(",") if uid.strip()]
-        user_id = random.choice(user_ids) if user_ids else os.environ.get("USER_ID", "")
+    # Pick a random user_id
+    # Attempt 1: Fetch from DynamoDB
+    user_ids = []
+    try:
+        import boto3
+        region = os.environ.get("AWS_REGION", "us-east-1")
+        dynamodb = boto3.client("dynamodb", region_name=region)
+        # Using a paginator just in case, though scan is fine for small tables
+        paginator = dynamodb.get_paginator('scan')
+        for page in paginator.paginate(TableName="iot-fleet_Users", ProjectionExpression="user_id"):
+            for item in page.get('Items', []):
+                if 'user_id' in item and 'S' in item['user_id']:
+                    user_ids.append(item['user_id']['S'])
+    except Exception as e:
+        print(f"Warning: Failed to fetch users from DynamoDB ({e}). Falling back to env variables.")
+
+    # Attempt 2: Fallback to USER_IDS from env
+    if not user_ids:
+        user_ids_str = os.environ.get("USER_IDS", "")
+        if user_ids_str:
+            user_ids = [uid.strip() for uid in user_ids_str.split(",") if uid.strip()]
+
+    # Attempt 3: Fallback to single USER_ID
+    if user_ids:
+        user_id = random.choice(user_ids)
     else:
         user_id = os.environ.get("USER_ID", "")
 
