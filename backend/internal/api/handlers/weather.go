@@ -18,7 +18,7 @@ type weatherCache struct {
 }
 
 // package-level cache — shared across all requests, refreshed every 10 minutes
-var weatherState = &weatherCache{temp: 36.0}
+var weatherState = &weatherCache{temp: 38.0}
 
 func getOutsideTemp() float64 {
 	weatherState.mu.Lock()
