@@ -189,7 +189,14 @@ func (store *TelemetryStore) GetTelemetryHistory(ctx context.Context, userID, de
 		if result.LastEvaluatedKey == nil {
 			break
 		}
+		if limit > 0 && int32(len(history)) >= limit {
+			break
+		}
 		input.ExclusiveStartKey = result.LastEvaluatedKey
+	}
+
+	if limit > 0 && int32(len(history)) > limit {
+		history = history[:limit]
 	}
 
 	return history, nil
