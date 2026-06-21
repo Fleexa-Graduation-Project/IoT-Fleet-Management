@@ -96,7 +96,7 @@ services:
     environment:
       STARTUP_DELAY: "20"
       DEVICE_ID: ac-actuator-01
-      DEVICE_TYPE: ac_curtain
+      DEVICE_TYPE: ac-actuator
       DEVICE_NAME: "AC & Curtain Actuator"
       DEVICE_LOCATION: "Living Room"
       USER_ID: ${USER_ID}

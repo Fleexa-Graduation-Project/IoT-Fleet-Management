@@ -52,7 +52,8 @@ class DeviceStatus(Enum):
 class DeviceConfig:
     """Device Configuration - shared across all devices"""
     device_id:        str                   # device-1, device-2, etc.
-    user_id:          str                   # Cognito sub 
+    user_id:          str                   # Cognito sub (fallback)
+    user_ids:         list                  # List of all Cognito subs
     device_name:      str                   # "Temperature Sensor"
     device_type:      str                   # "temperature_sensor"
     location:         str                   # "Living Room"
@@ -188,7 +189,7 @@ class BaseDevice(ABC):
             except Exception:
                 pass
 
-            command_topic = f"devices/{self.config.user_id}/{self.config.device_id}/commands"
+            command_topic = f"devices/+/{self.config.device_id}/commands"
             client.subscribe(command_topic, qos=1)
             logger.debug(f"📨 Subscribed to: {command_topic}")
             
@@ -360,14 +361,19 @@ class BaseDevice(ABC):
             telemetry_payload: Device-specific sensor data
         """
         try:
-            topic = f"devices/{self.config.user_id}/{self.config.device_id}/telemetry"
+            publish_user_id = self.config.user_id
+            if hasattr(self.config, 'user_ids') and self.config.user_ids:
+                import random
+                publish_user_id = random.choice(self.config.user_ids)
+
+            topic = f"devices/{publish_user_id}/{self.config.device_id}/telemetry"
 
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
             )
             # Timestamp stamped at actual publish time — always fresh.
             message = {
-                "user_id":   self.config.user_id,
+                "user_id":   publish_user_id,
                 "device_id": self.config.device_id,
                 "timestamp": int(time.time()),
                 "type":      device_type_key,
@@ -414,7 +420,12 @@ class BaseDevice(ABC):
             additional_data: Optional extra alert data
         """
         try:
-            topic = f"devices/{self.config.user_id}/{self.config.device_id}/alerts"
+            publish_user_id = self.config.user_id
+            if hasattr(self.config, 'user_ids') and self.config.user_ids:
+                import random
+                publish_user_id = random.choice(self.config.user_ids)
+
+            topic = f"devices/{publish_user_id}/{self.config.device_id}/alerts"
 
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
@@ -431,7 +442,7 @@ class BaseDevice(ABC):
 
             # Build schema-compliant message — timestamp always fresh at publish time
             message = {
-                "user_id":   self.config.user_id,
+                "user_id":   publish_user_id,
                 "device_id": self.config.device_id,
                 "timestamp": int(time.time()),
                 "type":      device_type_key,

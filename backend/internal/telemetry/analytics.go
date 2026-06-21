@@ -87,7 +87,7 @@ func GetTimeFormat(period string) string {
 	case "24h":
 		return "15:04"
 	case "7d":
-		return "Mon"
+		return "Jan 02"
 	case "1m":
 		return "Jan 02"
 	default:
@@ -595,7 +595,7 @@ func FillWeekAlertSlots(s3Data []AlertChartPoint, now time.Time) []AlertChartPoi
 	result := make([]AlertChartPoint, 7)
 	for i := 6; i >= 0; i-- {
 		day := now.AddDate(0, 0, -i)
-		weekdayLabel := day.Format("Mon")
+		weekdayLabel := day.Format("Jan 02")
 		dateKey := day.Format("Jan 02")
 
 		pt := AlertChartPoint{Label: weekdayLabel}
@@ -618,7 +618,7 @@ func FillWeekSlots(s3Data []ChartPoint, now time.Time) []ChartPoint {
 	result := make([]ChartPoint, 7)
 	for i := 6; i >= 0; i-- {
 		day := now.AddDate(0, 0, -i)
-		weekdayLabel := day.Format("Mon")  // shown in chart: "Mon", "Tue"...
+		weekdayLabel := day.Format("Jan 02")  // shown in chart: "Jun 20"...
 		dateKey := day.Format("Jan 02")    // matches S3 storage key: "Jun 20"
 
 		value := 0.0

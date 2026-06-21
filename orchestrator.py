@@ -45,6 +45,7 @@ def build_config_from_env():
     return DeviceConfig(
         device_id        = device_id,
         user_id          = user_id,
+        user_ids         = user_ids,
         device_name      = os.environ["DEVICE_NAME"],
         device_type      = os.environ["DEVICE_TYPE"],
         location         = os.environ.get("DEVICE_LOCATION", "Unknown"),
@@ -77,7 +78,7 @@ def get_device_class(device_type: str):
     elif device_type == "door_locker":
         from devices.simulators.actuators.door_locker import DoorLocker
         return DoorLocker
-    elif device_type == "ac_curtain":
+    elif device_type in ["ac_curtain", "ac-actuator"]:
         from devices.simulators.actuators.ac_curtain_actuator import ACCurtainActuator
         return ACCurtainActuator
     else:

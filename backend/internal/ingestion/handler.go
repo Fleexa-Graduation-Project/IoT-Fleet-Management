@@ -5,7 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
@@ -13,6 +18,7 @@ import (
 	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/validation"
 	"github.com/Fleexa-Graduation-Project/Backend/models"
+	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 )
 
 type Service struct {
@@ -109,7 +115,22 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 				return err
 			}
 
-			return service.StateStore.UpdateFromTelemetry(ctx, latestReading)
+			// Broadcast status update to all users
+			userIDs := service.fetchAllUsers(ctx)
+			if len(userIDs) == 0 {
+				return service.StateStore.UpdateFromTelemetry(ctx, latestReading)
+			}
+			
+			var lastErr error
+			originalUserID := latestReading.UserID
+			for _, uid := range userIDs {
+				latestReading.UserID = uid
+				if err := service.StateStore.UpdateFromTelemetry(ctx, latestReading); err != nil {
+					lastErr = err
+				}
+			}
+			latestReading.UserID = originalUserID // restore
+			return lastErr
 		}
 		return nil
 	}
@@ -133,7 +154,23 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 		return err
 	}
 
-	return service.StateStore.UpdateFromTelemetry(ctx, data)
+	// Broadcast status update to all users
+	userIDs := service.fetchAllUsers(ctx)
+	if len(userIDs) == 0 {
+		return service.StateStore.UpdateFromTelemetry(ctx, data)
+	}
+
+	var lastErr error
+	originalUserID := data.UserID
+	for _, uid := range userIDs {
+		data.UserID = uid
+		if err := service.StateStore.UpdateFromTelemetry(ctx, data); err != nil {
+			lastErr = err
+		}
+	}
+	data.UserID = originalUserID // restore
+
+	return lastErr
 }
 
 func (service *Service) handleAlert(ctx context.Context, deviceID string, envelope models.MQTTEnvelope) error {
@@ -177,4 +214,35 @@ func (service *Service) logValidationError(err error, deviceID string) {
 	default:
 		service.Logger.Error("unexpected validation error", "error", err)
 	}
+}
+
+func (service *Service) fetchAllUsers(ctx context.Context) []string {
+	var userIDs []string
+	tableName := os.Getenv("USERS_TABLE")
+	if tableName == "" {
+		service.Logger.Warn("USERS_TABLE environment variable not set, cannot broadcast status")
+		return userIDs
+	}
+
+	input := &dynamodb.ScanInput{
+		TableName:            aws.String(tableName),
+		ProjectionExpression: aws.String("user_id"),
+	}
+
+	paginator := dynamodb.NewScanPaginator(db.Client, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			service.Logger.Error("failed to scan users table", "error", err)
+			break
+		}
+		for _, item := range page.Items {
+			if uid, ok := item["user_id"]; ok {
+				if s, ok := uid.(*types.AttributeValueMemberS); ok {
+					userIDs = append(userIDs, s.Value)
+				}
+			}
+		}
+	}
+	return userIDs
 }
