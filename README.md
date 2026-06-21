@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./docs/assets/fleexa_letter_logo.png" alt="Logo" width="120" height="120">
+  <img src="./docs/assets/fleexa_letter_logo.svg" alt="Logo" width="120" height="120">
   <br></br>
   <h1 align="center">Fleexa IoT Fleet Management</h1>
 
