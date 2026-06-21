@@ -115,6 +115,13 @@ func FilterTime(history []models.Telemetry, metric string, period string, now in
 	groupedData := make(map[string]float64, mapCapacity)
 	countMap := make(map[string]int, mapCapacity)
 
+	// Pre-fill all 12 two-hour slots so empty buckets appear in the chart with value 0
+	if period == "24h" {
+		for h := 0; h < 24; h += 2 {
+			groupedData[fmt.Sprintf("%02d:00", h)] = 0
+		}
+	}
+
 	for _, record := range history {
 		ts := record.Timestamp.Int64()
 		if cutoff > 0 && ts < cutoff {
@@ -545,6 +552,28 @@ func CalculateEnergy(acUsage []ChartPoint) []ChartPoint {
 	}
 
 	return energyChart
+}
+
+// FillWeekSlots maps S3 daily data filling days with no data as 0.
+func FillWeekSlots(s3Data []ChartPoint, now time.Time) []ChartPoint {
+	s3Map := make(map[string]float64, len(s3Data))
+	for _, pt := range s3Data {
+		s3Map[pt.Label] = pt.Value
+	}
+
+	result := make([]ChartPoint, 7)
+	for i := 6; i >= 0; i-- {
+		day := now.AddDate(0, 0, -i)
+		weekdayLabel := day.Format("Mon")  // shown in chart: "Mon", "Tue"...
+		dateKey := day.Format("Jan 02")    // matches S3 storage key: "Jun 20"
+
+		value := 0.0
+		if v, ok := s3Map[dateKey]; ok {
+			value = v
+		}
+		result[6-i] = ChartPoint{Label: weekdayLabel, Value: value}
+	}
+	return result
 }
 
 // takes an array of daily ChartPoints and averages them into 4 weeks.

@@ -366,11 +366,7 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 		response["source"] = "S3 processed data"
 		monthlyData := handler.getMonthlyData(context.Request.Context(), userID, deviceID)
 		if period == "7d" {
-			if len(monthlyData) > 7 {
-				response["data"] = monthlyData[len(monthlyData)-7:]
-			} else {
-				response["data"] = monthlyData
-			}
+			response["data"] = telemetry.FillWeekSlots(monthlyData, time.Now())
 		} else if period == "1m" {
 			if len(monthlyData) == 0 {
 				response["data"] = []telemetry.ChartPoint{}
