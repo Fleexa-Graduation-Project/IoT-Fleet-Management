@@ -504,6 +504,9 @@ func buildACStateUpdate(action string, params map[string]interface{}, now int64)
 			if ps == "ON" {
 				fields["last_turned_on"] = now
 			}
+			if ps == "OFF" {
+				fields["timer_end_timestamp"] = int64(0)
+			}
 		}
 	case "set_temperature":
 		if temp, ok := params["target_temp"].(float64); ok {
@@ -514,8 +517,11 @@ func buildACStateUpdate(action string, params map[string]interface{}, now int64)
 			fields["mode"] = mode
 		}
 	case "set_timer":
-		if hours, ok := params["duration_hours"].(float64); ok && hours > 0 {
-			fields["timer_end_timestamp"] = now + int64(hours*3600)
+		if secs, ok := params["duration_seconds"].(float64); ok && secs > 0 {
+			fields["timer_end_timestamp"] = now + int64(secs)
+			fields["power_state"] = "ON"
+			fields["last_turned_on"] = now
+			opState = "ON"
 		}
 	}
 
