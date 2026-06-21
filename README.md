@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/Fleexa-Graduation-Project/IoT-Fleet-Management/main/docs/assets/logo-placeholder.png" alt="Logo" width="120" height="120">
-
+  <img src="./docs/assets/fleexa_letter_logo.png" alt="Logo" width="120" height="120">
+  <br></br>
   <h1 align="center">Fleexa IoT Fleet Management</h1>
 
   <p align="center">
@@ -40,9 +40,7 @@ Built from the ground up utilizing a **Serverless-First** approach on AWS, the s
 
 ## Architecture Overview
 
-> **Note:** Place an animated GIF or Draw.io architecture diagram in `docs/assets/architecture.gif` for a visual representation.
-
-![Architecture Diagram](https://raw.githubusercontent.com/Fleexa-Graduation-Project/IoT-Fleet-Management/main/docs/assets/architecture-placeholder.png)
+![Architecture Diagram](./docs/assets/architecture.gif)
 
 ### The Data Flow
 1. **Edge Simulation & Connectivity**: Dockerized Python simulators act as the edge devices. They authenticate natively with **AWS IoT Core** using strict Mutual TLS (mTLS) certificates and IoT Policies.
