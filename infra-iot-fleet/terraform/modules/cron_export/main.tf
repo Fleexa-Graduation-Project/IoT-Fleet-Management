@@ -60,9 +60,9 @@ resource "aws_lambda_function" "export_lambda" {
 }
 
 resource "aws_cloudwatch_event_rule" "every_24_hours" {
-  name                = "${var.project_name}-${var.environment}-daily-export"
-  description         = "Trigger DynamoDB to S3 export every 24 hours"
-  schedule_expression = "rate(24 hours)"
+  name                = "${var.project_name}-${var.environment}-daily-db-export"
+  description         = "Trigger IoT daily db export every 24 hours"
+  schedule_expression = "cron(0 0 * * ? *)"
 }
 
 resource "aws_cloudwatch_event_target" "export_target" {

@@ -6,7 +6,6 @@ from decimal import Decimal
 
 # Initialize AWS Clients
 s3 = boto3.client('s3')
-dynamodb = boto3.resource('dynamodb')
 
 # Environment Variables configured
 STATE_TABLE     = os.environ.get('STATE_TABLE',     'Fleexa_Devices')
@@ -46,8 +45,29 @@ def update_s3_chart(s3_key, day_label, new_entry):
         ContentType='application/json'
     )
 
+def fetch_latest_s3_export(table_name, target_date_str):
+    """
+    Fetches the latest JSON export for a specific table and date from S3.
+    Expected prefix: exports/YYYY-MM-DD/TableName/
+    """
+    prefix = f"exports/{target_date_str}/{table_name}/"
+    try:
+        resp = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=prefix)
+        if 'Contents' not in resp:
+            return []
+        
+        # Sort by LastModified to get the most recent export if multiple exist
+        latest_obj = sorted(resp['Contents'], key=lambda x: x['LastModified'], reverse=True)[0]
+        
+        print(f"  -> Reading {latest_obj['Key']}")
+        data_resp = s3.get_object(Bucket=BUCKET_NAME, Key=latest_obj['Key'])
+        return json.loads(data_resp['Body'].read().decode('utf-8'))
+    except Exception as e:
+        print(f"  -> Failed to read export for {table_name} on {target_date_str}: {e}")
+        return []
+
 def lambda_handler(event, _context):
-    print("Starting Nightly ETL Job...")
+    print("Starting Nightly Data Lake ETL Job (S3 Source)...")
 
     # Check if this is a manual backfill trigger
     backfill_days = 1
@@ -55,62 +75,62 @@ def lambda_handler(event, _context):
         backfill_days = int(event["backfill_days"])
         print(f"Backfill mode: Processing last {backfill_days} days")
 
-    # Get all active devices from the State Store
-    state_table      = dynamodb.Table(STATE_TABLE)
-    telemetry_table  = dynamodb.Table(TELEMETRY_TABLE)
-    alerts_table     = dynamodb.Table(ALERTS_TABLE)
-
-    # scan devices to build composite keys
-    devices_response = state_table.scan(
-        ProjectionExpression="user_id, device_id, #type",
-        ExpressionAttributeNames={"#type": "type"}
-    )
-
-    user_ids = set()
-    active_devices = devices_response.get('Items', [])
-    for device in active_devices:
-        user_ids.add(device['user_id'])
-
     now = datetime.now()
 
     # Process each day from backfill_days down to 1 (yesterday)
     for i in range(backfill_days, 0, -1):
         target_date = now - timedelta(days=i)
-        month_key = target_date.strftime("%Y-%m") # e.g., "2026-04"
-        day_label = target_date.strftime("%b %d") # e.g., "Apr 28"
+        export_date_str = target_date.strftime("%Y-%m-%d") # Format used by db-export
+        month_key = target_date.strftime("%Y-%m")          # e.g., "2026-04"
+        day_label = target_date.strftime("%b %d")          # e.g., "Apr 28"
 
-        print(f"Processing data for {day_label}...")
+        print(f"Processing data for {day_label} (Export Date: {export_date_str})...")
 
         start_time = int(target_date.replace(hour=0,  minute=0,  second=0).timestamp())
         end_time   = int(target_date.replace(hour=23, minute=59, second=59).timestamp())
 
+        # 1. Load Data Lake Exports into Memory
+        active_devices  = fetch_latest_s3_export(STATE_TABLE, export_date_str)
+        telemetry_items = fetch_latest_s3_export(TELEMETRY_TABLE, export_date_str)
+        alerts_items    = fetch_latest_s3_export(ALERTS_TABLE, export_date_str)
+
+        if not active_devices:
+            print(f"No State export found for {export_date_str}. Skipping day.")
+            continue
+
+        user_ids = set()
+        
+        # 2. Process Telemetry per Device
         for device in active_devices:
-            user_id     = device['user_id']
-            device_id   = device['device_id']
-            device_type = device['type']
+            user_id     = device.get('user_id')
+            device_id   = device.get('device_id')
+            device_type = device.get('type')
+            
+            if not user_id or not device_id:
+                continue
+                
+            user_ids.add(user_id)
 
-            # Query today's raw telemetry
-            udk      = f"{user_id}#{device_id}"
-            response = telemetry_table.query(
-                KeyConditionExpression="user_device_id = :udk AND #ts BETWEEN :start AND :end",
-                ExpressionAttributeNames={"#ts": "timestamp"},
-                ExpressionAttributeValues={":udk": udk, ":start": start_time, ":end": end_time}
-            )
+            # In-memory filter for this specific device and time range
+            udk = f"{user_id}#{device_id}"
+            device_telemetry = [
+                item for item in telemetry_items 
+                if item.get('user_device_id') == udk and start_time <= int(item.get('timestamp', 0)) <= end_time
+            ]
 
-            items = response.get('Items', [])
-            if not items:
+            if not device_telemetry:
                 continue
 
             # Calculate today's aggregate value
             daily_value = None
             if device_type in ["temperature_sensor", "gas_sensor", "light_sensor"]:
                 metric_key  = "temp" if device_type == "temperature_sensor" else ("gas_level" if device_type == "gas_sensor" else "light_level")
-                total       = sum(safe_float(item['payload'].get(metric_key, 0)) for item in items if metric_key in item['payload'])
-                daily_value = round(total / len(items), 1) if items else 0.0
+                total       = sum(safe_float(item.get('payload', {}).get(metric_key, 0)) for item in device_telemetry if metric_key in item.get('payload', {}))
+                daily_value = round(total / len(device_telemetry), 1) if device_telemetry else 0.0
 
             elif device_type == "ac_curtain":
                 # Each record represents 1 minute at the current publish interval
-                on_count    = sum(1 for item in items if item['payload'].get('power_state') == "ON")
+                on_count    = sum(1 for item in device_telemetry if item.get('payload', {}).get('power_state') == "ON")
                 daily_value = round(on_count / 60.0, 1) # convert minutes to hours
 
             if daily_value is not None:
@@ -120,18 +140,16 @@ def lambda_handler(event, _context):
                     {"label": day_label, "value": daily_value}
                 )
 
-        # alert aggregation for the Alerts & Warnings chart
+        # 3. Process Alerts per User
         for user_id in user_ids:
-            alerts_response = alerts_table.query(
-                IndexName="UserAlertsIndex",
-                KeyConditionExpression="user_id = :uid AND #ts BETWEEN :start AND :end",
-                ExpressionAttributeNames={"#ts": "timestamp"},
-                ExpressionAttributeValues={":uid": user_id, ":start": start_time, ":end": end_time}
-            )
-
-            alert_items     = alerts_response.get('Items', [])
-            daily_warnings  = sum(1 for a in alert_items if str(a.get('severity', '')).upper() == 'WARNING')
-            daily_criticals = sum(1 for a in alert_items if str(a.get('severity', '')).upper() == 'CRITICAL')
+            # In-memory filter for this specific user and time range
+            user_alerts = [
+                item for item in alerts_items 
+                if item.get('user_id') == user_id and start_time <= int(item.get('timestamp', 0)) <= end_time
+            ]
+            
+            daily_warnings  = sum(1 for a in user_alerts if str(a.get('severity', '')).upper() == 'WARNING')
+            daily_criticals = sum(1 for a in user_alerts if str(a.get('severity', '')).upper() == 'CRITICAL')
 
             update_s3_chart(
                 f"processed-alerts/{user_id}/{month_key}.json",
