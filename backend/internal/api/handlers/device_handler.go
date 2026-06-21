@@ -444,11 +444,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		monthlyAlerts := handler.getMonthlyAlerts(context.Request.Context(), userID)
 		var sliced []telemetry.AlertChartPoint
 		if timeFilter == "7d" {
-			if len(monthlyAlerts) > 7 {
-				sliced = monthlyAlerts[len(monthlyAlerts)-7:]
-			} else {
-				sliced = monthlyAlerts
-			}
+			sliced = telemetry.FillWeekAlertSlots(monthlyAlerts, time.Now())
 		} else {
 			sliced = telemetry.ChunkAlertWeeks(monthlyAlerts)
 		}
@@ -478,11 +474,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		acMonthlyData := handler.getMonthlyData(context.Request.Context(), userID, "ac-curtain-01")
 		var acUsage []telemetry.ChartPoint
 		if timeFilter == "7d" {
-			if len(acMonthlyData) > 7 {
-				acUsage = acMonthlyData[len(acMonthlyData)-7:]
-			} else {
-				acUsage = acMonthlyData
-			}
+			acUsage = telemetry.FillWeekSlots(acMonthlyData, time.Now())
 		} else {
 			acUsage = telemetry.ChunkIntoWeeks(acMonthlyData)
 		}

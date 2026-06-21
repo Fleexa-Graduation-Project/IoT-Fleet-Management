@@ -510,8 +510,23 @@ func GetAlerts(alertList []models.Alert, period string) map[string][]ChartPoint 
 	warningMap := make(map[string]float64)
 	criticalMap := make(map[string]float64)
 
+	// Pre-fill all 12 two-hour slots so empty buckets appear in the chart
+	if period == "24h" {
+		for h := 0; h < 24; h += 2 {
+			label := fmt.Sprintf("%02d:00", h)
+			warningMap[label] = 0
+			criticalMap[label] = 0
+		}
+	}
+
 	for _, alert := range alertList {
-		label := time.Unix(alert.Timestamp.Int64(), 0).Format(timeFormat)
+		t := time.Unix(alert.Timestamp.Int64(), 0)
+		var label string
+		if period == "24h" {
+			label = fmt.Sprintf("%02d:00", (t.Hour()/2)*2)
+		} else {
+			label = t.Format(timeFormat)
+		}
 		if alert.Severity == "WARNING" || alert.Severity == "warning" {
 			warningMap[label]++
 		} else if alert.Severity == "CRITICAL" || alert.Severity == "critical" {
@@ -552,6 +567,29 @@ func CalculateEnergy(acUsage []ChartPoint) []ChartPoint {
 	}
 
 	return energyChart
+}
+
+// FillWeekAlertSlots maps S3 daily alert data filling missing days with 0.
+func FillWeekAlertSlots(s3Data []AlertChartPoint, now time.Time) []AlertChartPoint {
+	s3Map := make(map[string]AlertChartPoint, len(s3Data))
+	for _, pt := range s3Data {
+		s3Map[pt.Label] = pt
+	}
+
+	result := make([]AlertChartPoint, 7)
+	for i := 6; i >= 0; i-- {
+		day := now.AddDate(0, 0, -i)
+		weekdayLabel := day.Format("Mon")
+		dateKey := day.Format("Jan 02")
+
+		pt := AlertChartPoint{Label: weekdayLabel}
+		if v, ok := s3Map[dateKey]; ok {
+			pt.Warnings = v.Warnings
+			pt.Criticals = v.Criticals
+		}
+		result[6-i] = pt
+	}
+	return result
 }
 
 // FillWeekSlots maps S3 daily data filling days with no data as 0.
