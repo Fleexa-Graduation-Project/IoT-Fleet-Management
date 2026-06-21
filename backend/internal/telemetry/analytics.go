@@ -404,13 +404,21 @@ func GetGasEvents(history []models.Telemetry) []map[string]interface{} {
 	return formatted
 }
 
-// calculating the total used hours for the last 5 days
+// calculating the total used hours per time slot
 func CalculateACUsage(history []models.Telemetry, now int64, period string) []ChartPoint {
 	if len(history) == 0 {
 		return []ChartPoint{}
 	}
 	timeFormat := GetTimeFormat(period)
 	dailyUsage := make(map[string]float64)
+
+	// Pre-fill all 12 two-hour slots so empty buckets appear in the chart
+	if period == "24h" {
+		for h := 0; h < 24; h += 2 {
+			dailyUsage[fmt.Sprintf("%02d:00", h)] = 0
+		}
+	}
+
 	var onTime int64
 
 	for i := len(history) - 1; i >= 0; i-- {
@@ -426,8 +434,7 @@ func CalculateACUsage(history []models.Telemetry, now int64, period string) []Ch
 		} else if state == "OFF" && onTime > 0 {
 			duration := ts - onTime
 			if duration > 0 {
-				dayLabel := time.Unix(onTime, 0).Format(timeFormat)
-				dailyUsage[dayLabel] += float64(duration)
+				dailyUsage[acSlotLabel(onTime, period, timeFormat)] += float64(duration)
 			}
 			onTime = 0
 		}
@@ -436,12 +443,11 @@ func CalculateACUsage(history []models.Telemetry, now int64, period string) []Ch
 	if onTime > 0 {
 		duration := now - onTime
 		if duration > 0 {
-			dayLabel := time.Unix(onTime, 0).Format(timeFormat)
-			dailyUsage[dayLabel] += float64(duration)
+			dailyUsage[acSlotLabel(onTime, period, timeFormat)] += float64(duration)
 		}
 	}
 
-	var chartResult []ChartPoint
+	chartResult := make([]ChartPoint, 0, len(dailyUsage))
 	for label, totalSeconds := range dailyUsage {
 		hours := totalSeconds / 3600.0
 		chartResult = append(chartResult, ChartPoint{
@@ -450,7 +456,19 @@ func CalculateACUsage(history []models.Telemetry, now int64, period string) []Ch
 		})
 	}
 
+	slices.SortFunc(chartResult, func(a, b ChartPoint) int {
+		return cmp.Compare(a.Label, b.Label)
+	})
+
 	return chartResult
+}
+
+func acSlotLabel(ts int64, period, timeFormat string) string {
+	t := time.Unix(ts, 0)
+	if period == "24h" {
+		return fmt.Sprintf("%02d:00", (t.Hour()/2)*2)
+	}
+	return t.Format(timeFormat)
 }
 
 func FormatACTime(seconds int64) string {
@@ -552,17 +570,15 @@ func GetAlerts(alertList []models.Alert, period string) map[string][]ChartPoint 
 }
 
 func CalculateEnergy(acUsage []ChartPoint) []ChartPoint {
-	const dailyPower = 0.132
 	const acPower = 1.5
 
 	var energyChart []ChartPoint
 
 	for _, point := range acUsage {
-		dailyAC := point.Value * acPower
-		totalConsumption := dailyAC + dailyPower
+		consumption := point.Value * acPower
 		energyChart = append(energyChart, ChartPoint{
 			Label: point.Label,
-			Value: math.Round(totalConsumption*10) / 10,
+			Value: math.Round(consumption*10) / 10,
 		})
 	}
 

@@ -465,11 +465,8 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		if acErr != nil {
 			slog.Warn("failed to fetch AC telemetry for energy chart", "error", acErr)
 		}
-		totalSeconds := telemetry.CalculateACRunTime(acHistory, now)
-		todayHours := float64(totalSeconds) / 3600.0
-		energyData = telemetry.CalculateEnergy([]telemetry.ChartPoint{
-			{Label: "Today", Value: todayHours},
-		})
+		acUsage := telemetry.CalculateACUsage(acHistory, now, "24h")
+		energyData = telemetry.CalculateEnergy(acUsage)
 	} else {
 		acMonthlyData := handler.getMonthlyData(context.Request.Context(), userID, "ac-curtain-01")
 		var acUsage []telemetry.ChartPoint
