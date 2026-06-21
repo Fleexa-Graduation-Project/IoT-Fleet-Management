@@ -90,12 +90,12 @@ def lambda_handler(_event, _context):
 
         # Calculate today's aggregate value
         daily_value = None
-        if device_type in ["temp-sensor", "gas-sensor", "light-sensor"]:
-            metric_key  = "temp" if device_type == "temp-sensor" else ("gas_level" if device_type == "gas-sensor" else "light_level")
+        if device_type in ["temperature_sensor", "gas_sensor", "light_sensor"]:
+            metric_key  = "temp" if device_type == "temperature_sensor" else ("gas_level" if device_type == "gas_sensor" else "light_level")
             total       = sum(safe_float(item['payload'].get(metric_key, 0)) for item in items if metric_key in item['payload'])
             daily_value = round(total / len(items), 1) if items else 0.0
 
-        elif device_type == "ac-actuator":
+        elif device_type == "ac_curtain":
             # Each record represents 1 minute at the current publish interval
             on_count    = sum(1 for item in items if item['payload'].get('power_state') == "ON")
             daily_value = round(on_count / 60.0, 1) # convert minutes to hours
