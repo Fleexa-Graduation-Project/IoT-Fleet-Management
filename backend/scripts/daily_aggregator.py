@@ -45,25 +45,30 @@ def update_s3_chart(s3_key, day_label, new_entry):
         ContentType='application/json'
     )
 
-def fetch_latest_s3_export(table_name, target_date_str):
+def fetch_latest_s3_export(table_name):
     """
-    Fetches the latest JSON export for a specific table and date from S3.
-    Expected prefix: exports/YYYY-MM-DD/TableName/
+    Fetches the absolutely latest JSON export for a specific table from S3.
+    It lists all prefixes and finds the most recent one.
     """
-    prefix = f"exports/{target_date_str}/{table_name}/"
     try:
-        resp = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=prefix)
+        # We need to find the latest export date directory first
+        resp = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix="exports/")
         if 'Contents' not in resp:
             return []
-        
-        # Sort by LastModified to get the most recent export if multiple exist
-        latest_obj = sorted(resp['Contents'], key=lambda x: x['LastModified'], reverse=True)[0]
+            
+        # Filter for the specific table
+        table_objects = [obj for obj in resp['Contents'] if f"/{table_name}/" in obj['Key']]
+        if not table_objects:
+            return []
+            
+        # Sort by LastModified to get the most recent export
+        latest_obj = sorted(table_objects, key=lambda x: x['LastModified'], reverse=True)[0]
         
         print(f"  -> Reading {latest_obj['Key']}")
         data_resp = s3.get_object(Bucket=BUCKET_NAME, Key=latest_obj['Key'])
         return json.loads(data_resp['Body'].read().decode('utf-8'))
     except Exception as e:
-        print(f"  -> Failed to read export for {table_name} on {target_date_str}: {e}")
+        print(f"  -> Failed to read latest export for {table_name}: {e}")
         return []
 
 def lambda_handler(event, _context):
@@ -77,28 +82,32 @@ def lambda_handler(event, _context):
 
     now = datetime.now()
 
+    # 1. Load the most recent Data Lake Exports into Memory ONCE
+    print("Fetching latest Data Lake exports into memory...")
+    active_devices  = fetch_latest_s3_export(STATE_TABLE)
+    telemetry_items = fetch_latest_s3_export(TELEMETRY_TABLE)
+    alerts_items    = fetch_latest_s3_export(ALERTS_TABLE)
+
+    if not active_devices:
+        print("No State export found in Data Lake. Exiting.")
+        return {"status": "failed", "reason": "No State Export"}
+
+    # Extract all unique user IDs
+    user_ids = set()
+    for device in active_devices:
+        if device.get('user_id'):
+            user_ids.add(device['user_id'])
+
     # Process each day from backfill_days down to 1 (yesterday)
     for i in range(backfill_days, 0, -1):
         target_date = now - timedelta(days=i)
-        export_date_str = target_date.strftime("%Y-%m-%d") # Format used by db-export
         month_key = target_date.strftime("%Y-%m")          # e.g., "2026-04"
         day_label = target_date.strftime("%b %d")          # e.g., "Apr 28"
 
-        print(f"Processing data for {day_label} (Export Date: {export_date_str})...")
+        print(f"Processing data for {day_label}...")
 
         start_time = int(target_date.replace(hour=0,  minute=0,  second=0).timestamp())
         end_time   = int(target_date.replace(hour=23, minute=59, second=59).timestamp())
-
-        # 1. Load Data Lake Exports into Memory
-        active_devices  = fetch_latest_s3_export(STATE_TABLE, export_date_str)
-        telemetry_items = fetch_latest_s3_export(TELEMETRY_TABLE, export_date_str)
-        alerts_items    = fetch_latest_s3_export(ALERTS_TABLE, export_date_str)
-
-        if not active_devices:
-            print(f"No State export found for {export_date_str}. Skipping day.")
-            continue
-
-        user_ids = set()
         
         # 2. Process Telemetry per Device
         for device in active_devices:
@@ -108,8 +117,6 @@ def lambda_handler(event, _context):
             
             if not user_id or not device_id:
                 continue
-                
-            user_ids.add(user_id)
 
             # In-memory filter for this specific device and time range
             udk = f"{user_id}#{device_id}"

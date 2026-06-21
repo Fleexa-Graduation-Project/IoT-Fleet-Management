@@ -464,7 +464,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 	var energyData []telemetry.ChartPoint
 	if isHotTier(timeFilter) {
 		acHistory, acErr := handler.TelemetryStore.GetTelemetryHistory(
-			context.Request.Context(), userID, "ac-actuator-01", 0, cutoff,
+			context.Request.Context(), userID, "ac-curtain-01", 0, cutoff,
 		)
 		if acErr != nil {
 			slog.Warn("failed to fetch AC telemetry for energy chart", "error", acErr)
@@ -475,7 +475,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 			{Label: "Today", Value: todayHours},
 		})
 	} else {
-		acMonthlyData := handler.getMonthlyData(context.Request.Context(), userID, "ac-actuator-01")
+		acMonthlyData := handler.getMonthlyData(context.Request.Context(), userID, "ac-curtain-01")
 		var acUsage []telemetry.ChartPoint
 		if timeFilter == "7d" {
 			if len(acMonthlyData) > 7 {
