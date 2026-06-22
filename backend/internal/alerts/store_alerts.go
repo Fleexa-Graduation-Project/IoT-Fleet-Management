@@ -101,19 +101,33 @@ func (store *AlertStore) GetAlertsByDevice(ctx context.Context, userID, deviceID
 }
 
 // retrieves all alerts for a user in the whole system (system overview part)
-func (store *AlertStore) GetAllAlerts(ctx context.Context, userID string, since int64) ([]models.Alert, error) {
+func (store *AlertStore) GetAllAlerts(ctx context.Context, userID string, since int64, limit int32, before int64) ([]models.Alert, error) {
+	const defaultLimit int32 = 20
+	if limit <= 0 {
+		limit = 0 // unlimited for callers like system overview
+	}
+
+	if before <= 0 {
+		before = time.Now().Unix()
+	}
+
 	input := &dynamodb.QueryInput{
 		TableName:              aws.String(store.TableName),
 		IndexName:              aws.String("UserAlertsIndex"),
-		KeyConditionExpression: aws.String("user_id = :uid AND #ts >= :since"),
+		KeyConditionExpression: aws.String("user_id = :uid AND #ts BETWEEN :since AND :before"),
 		ExpressionAttributeNames: map[string]string{
 			"#ts": "timestamp",
 		},
 		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":uid":   &types.AttributeValueMemberS{Value: userID},
-			":since": &types.AttributeValueMemberN{Value: fmt.Sprint(since)},
+			":uid":    &types.AttributeValueMemberS{Value: userID},
+			":since":  &types.AttributeValueMemberN{Value: fmt.Sprint(since)},
+			":before": &types.AttributeValueMemberN{Value: fmt.Sprint(before)},
 		},
 		ScanIndexForward: aws.Bool(false),
+	}
+
+	if limit > 0 {
+		input.Limit = aws.Int32(limit)
 	}
 
 	res, err := store.Client.Query(ctx, input)

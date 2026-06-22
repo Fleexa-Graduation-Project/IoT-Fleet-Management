@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -61,23 +61,42 @@ func (handler *DeviceHandler) GetDevices(context *gin.Context) {
 	context.JSON(http.StatusOK, gin.H{"data": states})
 }
 
-// GET /api/v1/alerts
+// GET /api/v1/alerts?limit=20&before=<timestamp>
 func (handler *DeviceHandler) GetSortedAlerts(context *gin.Context) {
 	userID := context.GetString("user_id")
 	now := time.Now().Unix()
 	cutoff := now - (7 * 86400)
 
-	alertList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), userID, cutoff)
+	limit := int32(20)
+	if l := context.Query("limit"); l != "" {
+		if parsed, err := strconv.ParseInt(l, 10, 32); err == nil && parsed > 0 {
+			limit = int32(parsed)
+		}
+	}
+
+	before := now
+	if b := context.Query("before"); b != "" {
+		if parsed, err := strconv.ParseInt(b, 10, 64); err == nil && parsed > 0 {
+			before = parsed
+		}
+	}
+
+	alertList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), userID, cutoff, limit, before)
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch global alerts"})
 		return
 	}
 
-	sort.Slice(alertList, func(i, j int) bool {
-		return alertList[i].Timestamp > alertList[j].Timestamp
-	})
+	var nextCursor *int64
+	if int32(len(alertList)) == limit {
+		last := int64(alertList[len(alertList)-1].Timestamp) - 1
+		nextCursor = &last
+	}
 
-	context.JSON(http.StatusOK, gin.H{"data": alertList})
+	context.JSON(http.StatusOK, gin.H{
+		"data":        alertList,
+		"next_cursor": nextCursor,
+	})
 }
 
 // showDoorStats: last 5 recent events, last activity time, security alert status
@@ -435,7 +454,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 
 	var alertsChart map[string][]telemetry.ChartPoint
 	if isHotTier(timeFilter) {
-		alertsList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), userID, cutoff)
+		alertsList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), userID, cutoff, 0, 0)
 		if err != nil {
 			slog.Warn("failed to get 24h alerts for system overview", "error", err)
 		}
