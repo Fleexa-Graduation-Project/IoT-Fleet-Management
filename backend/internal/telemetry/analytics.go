@@ -87,7 +87,7 @@ func GetTimeFormat(period string) string {
 	case "24h":
 		return "15:04"
 	case "7d":
-		return "Mon"
+		return "Jan 02"
 	case "1m":
 		return "Jan 02"
 	default:
@@ -114,6 +114,13 @@ func FilterTime(history []models.Telemetry, metric string, period string, now in
 
 	groupedData := make(map[string]float64, mapCapacity)
 	countMap := make(map[string]int, mapCapacity)
+
+	// Pre-fill all 12 two-hour slots so empty buckets appear in the chart with value 0
+	if period == "24h" {
+		for h := 0; h < 24; h += 2 {
+			groupedData[fmt.Sprintf("%02d:00", h)] = 0
+		}
+	}
 
 	for _, record := range history {
 		ts := record.Timestamp.Int64()
@@ -397,13 +404,21 @@ func GetGasEvents(history []models.Telemetry) []map[string]interface{} {
 	return formatted
 }
 
-// calculating the total used hours for the last 5 days
+// calculating the total used hours per time slot
 func CalculateACUsage(history []models.Telemetry, now int64, period string) []ChartPoint {
 	if len(history) == 0 {
 		return []ChartPoint{}
 	}
 	timeFormat := GetTimeFormat(period)
 	dailyUsage := make(map[string]float64)
+
+	// Pre-fill all 12 two-hour slots so empty buckets appear in the chart
+	if period == "24h" {
+		for h := 0; h < 24; h += 2 {
+			dailyUsage[fmt.Sprintf("%02d:00", h)] = 0
+		}
+	}
+
 	var onTime int64
 
 	for i := len(history) - 1; i >= 0; i-- {
@@ -419,8 +434,7 @@ func CalculateACUsage(history []models.Telemetry, now int64, period string) []Ch
 		} else if state == "OFF" && onTime > 0 {
 			duration := ts - onTime
 			if duration > 0 {
-				dayLabel := time.Unix(onTime, 0).Format(timeFormat)
-				dailyUsage[dayLabel] += float64(duration)
+				dailyUsage[acSlotLabel(onTime, period, timeFormat)] += float64(duration)
 			}
 			onTime = 0
 		}
@@ -429,12 +443,11 @@ func CalculateACUsage(history []models.Telemetry, now int64, period string) []Ch
 	if onTime > 0 {
 		duration := now - onTime
 		if duration > 0 {
-			dayLabel := time.Unix(onTime, 0).Format(timeFormat)
-			dailyUsage[dayLabel] += float64(duration)
+			dailyUsage[acSlotLabel(onTime, period, timeFormat)] += float64(duration)
 		}
 	}
 
-	var chartResult []ChartPoint
+	chartResult := make([]ChartPoint, 0, len(dailyUsage))
 	for label, totalSeconds := range dailyUsage {
 		hours := totalSeconds / 3600.0
 		chartResult = append(chartResult, ChartPoint{
@@ -443,7 +456,19 @@ func CalculateACUsage(history []models.Telemetry, now int64, period string) []Ch
 		})
 	}
 
+	slices.SortFunc(chartResult, func(a, b ChartPoint) int {
+		return cmp.Compare(a.Label, b.Label)
+	})
+
 	return chartResult
+}
+
+func acSlotLabel(ts int64, period, timeFormat string) string {
+	t := time.Unix(ts, 0)
+	if period == "24h" {
+		return fmt.Sprintf("%02d:00", (t.Hour()/2)*2)
+	}
+	return t.Format(timeFormat)
 }
 
 func FormatACTime(seconds int64) string {
@@ -503,8 +528,23 @@ func GetAlerts(alertList []models.Alert, period string) map[string][]ChartPoint 
 	warningMap := make(map[string]float64)
 	criticalMap := make(map[string]float64)
 
+	// Pre-fill all 12 two-hour slots so empty buckets appear in the chart
+	if period == "24h" {
+		for h := 0; h < 24; h += 2 {
+			label := fmt.Sprintf("%02d:00", h)
+			warningMap[label] = 0
+			criticalMap[label] = 0
+		}
+	}
+
 	for _, alert := range alertList {
-		label := time.Unix(alert.Timestamp.Int64(), 0).Format(timeFormat)
+		t := time.Unix(alert.Timestamp.Int64(), 0)
+		var label string
+		if period == "24h" {
+			label = fmt.Sprintf("%02d:00", (t.Hour()/2)*2)
+		} else {
+			label = t.Format(timeFormat)
+		}
 		if alert.Severity == "WARNING" || alert.Severity == "warning" {
 			warningMap[label]++
 		} else if alert.Severity == "CRITICAL" || alert.Severity == "critical" {
@@ -530,21 +570,64 @@ func GetAlerts(alertList []models.Alert, period string) map[string][]ChartPoint 
 }
 
 func CalculateEnergy(acUsage []ChartPoint) []ChartPoint {
-	const dailyPower = 0.132
 	const acPower = 1.5
 
 	var energyChart []ChartPoint
 
 	for _, point := range acUsage {
-		dailyAC := point.Value * acPower
-		totalConsumption := dailyAC + dailyPower
+		consumption := point.Value * acPower
 		energyChart = append(energyChart, ChartPoint{
 			Label: point.Label,
-			Value: math.Round(totalConsumption*10) / 10,
+			Value: math.Round(consumption*10) / 10,
 		})
 	}
 
 	return energyChart
+}
+
+// FillWeekAlertSlots maps S3 daily alert data filling missing days with 0.
+func FillWeekAlertSlots(s3Data []AlertChartPoint, now time.Time) []AlertChartPoint {
+	s3Map := make(map[string]AlertChartPoint, len(s3Data))
+	for _, pt := range s3Data {
+		s3Map[pt.Label] = pt
+	}
+
+	result := make([]AlertChartPoint, 7)
+	for i := 6; i >= 0; i-- {
+		day := now.AddDate(0, 0, -i)
+		weekdayLabel := day.Format("Jan 02")
+		dateKey := day.Format("Jan 02")
+
+		pt := AlertChartPoint{Label: weekdayLabel}
+		if v, ok := s3Map[dateKey]; ok {
+			pt.Warnings = v.Warnings
+			pt.Criticals = v.Criticals
+		}
+		result[6-i] = pt
+	}
+	return result
+}
+
+// FillWeekSlots maps S3 daily data filling days with no data as 0.
+func FillWeekSlots(s3Data []ChartPoint, now time.Time) []ChartPoint {
+	s3Map := make(map[string]float64, len(s3Data))
+	for _, pt := range s3Data {
+		s3Map[pt.Label] = pt.Value
+	}
+
+	result := make([]ChartPoint, 7)
+	for i := 6; i >= 0; i-- {
+		day := now.AddDate(0, 0, -i)
+		weekdayLabel := day.Format("Jan 02")  // shown in chart: "Jun 20"...
+		dateKey := day.Format("Jan 02")    // matches S3 storage key: "Jun 20"
+
+		value := 0.0
+		if v, ok := s3Map[dateKey]; ok {
+			value = v
+		}
+		result[6-i] = ChartPoint{Label: weekdayLabel, Value: value}
+	}
+	return result
 }
 
 // takes an array of daily ChartPoints and averages them into 4 weeks.

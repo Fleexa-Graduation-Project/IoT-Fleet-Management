@@ -366,11 +366,7 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 		response["source"] = "S3 processed data"
 		monthlyData := handler.getMonthlyData(context.Request.Context(), userID, deviceID)
 		if period == "7d" {
-			if len(monthlyData) > 7 {
-				response["data"] = monthlyData[len(monthlyData)-7:]
-			} else {
-				response["data"] = monthlyData
-			}
+			response["data"] = telemetry.FillWeekSlots(monthlyData, time.Now())
 		} else if period == "1m" {
 			if len(monthlyData) == 0 {
 				response["data"] = []telemetry.ChartPoint{}
@@ -448,11 +444,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		monthlyAlerts := handler.getMonthlyAlerts(context.Request.Context(), userID)
 		var sliced []telemetry.AlertChartPoint
 		if timeFilter == "7d" {
-			if len(monthlyAlerts) > 7 {
-				sliced = monthlyAlerts[len(monthlyAlerts)-7:]
-			} else {
-				sliced = monthlyAlerts
-			}
+			sliced = telemetry.FillWeekAlertSlots(monthlyAlerts, time.Now())
 		} else {
 			sliced = telemetry.ChunkAlertWeeks(monthlyAlerts)
 		}
@@ -473,20 +465,13 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		if acErr != nil {
 			slog.Warn("failed to fetch AC telemetry for energy chart", "error", acErr)
 		}
-		totalSeconds := telemetry.CalculateACRunTime(acHistory, now)
-		todayHours := float64(totalSeconds) / 3600.0
-		energyData = telemetry.CalculateEnergy([]telemetry.ChartPoint{
-			{Label: "Today", Value: todayHours},
-		})
+		acUsage := telemetry.CalculateACUsage(acHistory, now, "24h")
+		energyData = telemetry.CalculateEnergy(acUsage)
 	} else {
 		acMonthlyData := handler.getMonthlyData(context.Request.Context(), userID, "ac-actuator-01")
 		var acUsage []telemetry.ChartPoint
 		if timeFilter == "7d" {
-			if len(acMonthlyData) > 7 {
-				acUsage = acMonthlyData[len(acMonthlyData)-7:]
-			} else {
-				acUsage = acMonthlyData
-			}
+			acUsage = telemetry.FillWeekSlots(acMonthlyData, time.Now())
 		} else {
 			acUsage = telemetry.ChunkIntoWeeks(acMonthlyData)
 		}
@@ -519,6 +504,9 @@ func buildACStateUpdate(action string, params map[string]interface{}, now int64)
 			if ps == "ON" {
 				fields["last_turned_on"] = now
 			}
+			if ps == "OFF" {
+				fields["timer_end_timestamp"] = int64(0)
+			}
 		}
 	case "set_temperature":
 		if temp, ok := params["target_temp"].(float64); ok {
@@ -529,8 +517,11 @@ func buildACStateUpdate(action string, params map[string]interface{}, now int64)
 			fields["mode"] = mode
 		}
 	case "set_timer":
-		if hours, ok := params["duration_hours"].(float64); ok && hours > 0 {
-			fields["timer_end_timestamp"] = now + int64(hours*3600)
+		if secs, ok := params["duration_seconds"].(float64); ok && secs > 0 {
+			fields["timer_end_timestamp"] = now + int64(secs)
+			fields["power_state"] = "ON"
+			fields["last_turned_on"] = now
+			opState = "ON"
 		}
 	}
 

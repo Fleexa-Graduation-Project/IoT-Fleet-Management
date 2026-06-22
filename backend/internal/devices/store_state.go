@@ -227,6 +227,55 @@ func (store *StateStore) GetAllOpenDoors(ctx context.Context) ([]models.DeviceSt
 	return states, nil
 }
 
+// GetExpiredACTimers scans all devices for AC actuators that are ON and have a
+// timer_end_timestamp that has already passed — used by ac-timer-watch Lambda.
+func (s *StateStore) GetExpiredACTimers(ctx context.Context, now int64) ([]models.DeviceState, error) {
+	var states []models.DeviceState
+	var lastKey map[string]types.AttributeValue
+
+	for {
+		input := &dynamodb.ScanInput{
+			TableName: aws.String(s.TableName),
+			FilterExpression: aws.String(
+				"#type = :acType AND #payload.#ps = :on AND #payload.#ts > :zero AND #payload.#ts <= :now",
+			),
+			ExpressionAttributeNames: map[string]string{
+				"#type":    "type",
+				"#payload": "payload",
+				"#ps":      "power_state",
+				"#ts":      "timer_end_timestamp",
+			},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":acType": &types.AttributeValueMemberS{Value: "ac-actuator"},
+				":on":     &types.AttributeValueMemberS{Value: "ON"},
+				":zero":   &types.AttributeValueMemberN{Value: "0"},
+				":now":    &types.AttributeValueMemberN{Value: fmt.Sprint(now)},
+			},
+			ExclusiveStartKey: lastKey,
+		}
+
+		result, err := s.Client.Scan(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan expired AC timers: %w", err)
+		}
+
+		for _, item := range result.Items {
+			var state models.DeviceState
+			if err := attributevalue.UnmarshalMap(item, &state); err != nil {
+				continue
+			}
+			states = append(states, state)
+		}
+
+		lastKey = result.LastEvaluatedKey
+		if lastKey == nil {
+			break
+		}
+	}
+
+	return states, nil
+}
+
 // UpdateACFields partially updates specific nested payload fields for an AC
 func (s *StateStore) UpdateACFields(ctx context.Context, userID, deviceID string, payloadFields map[string]interface{}, opState string) error {
 	now := time.Now().Unix()

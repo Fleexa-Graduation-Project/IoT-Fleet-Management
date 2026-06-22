@@ -57,7 +57,7 @@ class ACCurtainActuator(BaseDevice):
         })
         self._check_and_publish_alerts()
         return {
-            "sensor_type": "ac_curtain",
+            "sensor_type": "ac-actuator",
             "power_state": "OFF" if self.mode.value == "OFF" else "ON",
             "mode": self.mode.value,
             "target_temp": self.ac_temp_setpoint,
