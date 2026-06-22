@@ -52,6 +52,18 @@ func (s *Service) SendPushNotification(ctx context.Context, tokens []string, sev
 		Data: map[string]string{
 			"severity": severity,
 		},
+		Android: &messaging.AndroidConfig{
+			Notification: &messaging.AndroidNotification{
+				Sound: "alert_sound",
+			},
+		},
+		APNS: &messaging.APNSConfig{
+			Payload: &messaging.APNSPayload{
+				Aps: &messaging.Aps{
+					Sound: "alert_sound.wav",
+				},
+			},
+		},
 	}
 
 	response, err := s.fcmClient.SendEachForMulticast(ctx, message)
