@@ -24,6 +24,8 @@
 [![Go](https://img.shields.io/badge/Go-1.24.2-00ADD8.svg?style=flat-square&logo=go)](https://golang.org/)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB.svg?style=flat-square&logo=python)](https://python.org/)
 [![AWS](https://img.shields.io/badge/AWS-IoT_Core_%7C_Lambda_%7C_DynamoDB-232F3E.svg?style=flat-square&logo=amazon-aws)](https://aws.amazon.com/)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B.svg?style=flat-square&logo=flutter&logoColor=white)](https://flutter.dev/)
+[![Dart](https://img.shields.io/badge/Dart-3.x-0175C2.svg?style=flat-square&logo=dart&logoColor=white)](https://dart.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
 </div>
