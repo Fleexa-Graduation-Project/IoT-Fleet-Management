@@ -322,6 +322,26 @@ func (s *StateStore) UpdateACFields(ctx context.Context, userID, deviceID string
 	return nil
 }
 
+//persists the user's normal unlock duration threshold for the door-actuator.
+func (s *StateStore) UpdateDoorPreference(ctx context.Context, userID, deviceID string, normalDuration float64) error {
+	_, err := s.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(s.TableName),
+		Key: map[string]types.AttributeValue{
+			"user_id":   &types.AttributeValueMemberS{Value: userID},
+			"device_id": &types.AttributeValueMemberS{Value: deviceID},
+		},
+		UpdateExpression: aws.String("SET normal_unlock_duration = :v, updated_at = :now"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":v":   &types.AttributeValueMemberN{Value: fmt.Sprintf("%g", normalDuration)},
+			":now": &types.AttributeValueMemberN{Value: fmt.Sprint(time.Now().Unix())},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update door preference user_id=%s device_id=%s: %w", userID, deviceID, err)
+	}
+	return nil
+}
+
 // retrieve the device state by id
 func (s *StateStore) GetStateByID(ctx context.Context, userID, deviceID string) (*models.DeviceState, error) {
 	input := &dynamodb.GetItemInput{

@@ -131,8 +131,8 @@ func addDoorInsights(payload map[string]interface{}, data []models.Telemetry, st
 	payload["average_unlock"] = avgUnlock
 
 	normalDuration := 15.0
-	if userPref, ok := state.Payload["normal_unlock_duration"].(float64); ok {
-		normalDuration = userPref
+	if state.NormalUnlockDuration > 0 {
+		normalDuration = state.NormalUnlockDuration
 	}
 
 	if avgUnlock > normalDuration {
@@ -582,6 +582,17 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		); updateErr != nil {
 			slog.Warn("AC optimistic state update failed",
 				"device_id", deviceID, "action", req.Action, "error", updateErr)
+		}
+	}
+
+	if req.Action == "set_normal_unlock_duration" {
+		if duration, ok := req.Parameters["duration"].(float64); ok && duration > 0 {
+			if prefErr := handler.StateStore.UpdateDoorPreference(
+				context.Request.Context(), userID, deviceID, duration,
+			); prefErr != nil {
+				slog.Warn("door preference update failed",
+					"device_id", deviceID, "error", prefErr)
+			}
 		}
 	}
 
