@@ -1,2 +1,9 @@
-# Dummy content for font_families.json
-# This file was generated as part of the project structure setup.
+{
+  "primaryFont": "Rubik",
+  "weights": {
+    "regular": 400,
+    "medium": 500,
+    "semiBold": 600,
+    "bold": 700
+  }
+}
