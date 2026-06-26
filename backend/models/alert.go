@@ -11,6 +11,7 @@ type Alert struct {
 	Severity  string                 `json:"severity"   dynamodbav:"severity"`
 	Payload   map[string]interface{} `json:"payload"    dynamodbav:"payload"`
 	ExpiresAt EpochTime              `json:"expires_at" dynamodbav:"expires_at"`
+	IsRead    bool                   `json:"is_read"    dynamodbav:"is_read"`
 }
 
 // GenerateID builds a deterministic, unique alert_id.

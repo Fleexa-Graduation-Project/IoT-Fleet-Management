@@ -423,6 +423,23 @@ func (handler *DeviceHandler) GetDeviceAlerts(context *gin.Context) {
 	context.JSON(http.StatusOK, gin.H{"data": alertList})
 }
 
+// PUT /api/v1/alerts/:id/read
+func (handler *DeviceHandler) MarkAlertRead(c *gin.Context) {
+	alertID := c.Param("id")
+	if alertID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "alert_id is required"})
+		return
+	}
+
+	if err := handler.AlertStore.MarkAlertAsRead(c.Request.Context(), alertID); err != nil {
+		slog.Error("failed to mark alert as read", "alert_id", alertID, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark alert as read"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "alert marked as read"})
+}
+
 func isHotTier(period string) bool {
 	return period == "24h"
 }

@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/google/uuid"
-
-	"github.com/Fleexa-Graduation-Project/Backend/models"
+"github.com/Fleexa-Graduation-Project/Backend/models"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 )
 
@@ -44,7 +43,7 @@ func buildUserDeviceKey(userID, deviceID string) string {
 
 func (store *AlertStore) SaveAlert(ctx context.Context, alert models.Alert) error {
 	if alert.AlertID == "" {
-		alert.AlertID = uuid.NewString()
+		alert.GenerateID()
 	}
 	if alert.ExpiresAt == 0 {
 		alert.ExpiresAt = models.EpochTime(time.Now().Add(30 * 24 * time.Hour).Unix())
@@ -141,6 +140,32 @@ func (store *AlertStore) GetAllAlerts(ctx context.Context, userID string, since 
 	}
 
 	return alerts, nil
+}
+
+//sets is_read=true on a single alert.
+func (store *AlertStore) MarkAlertAsRead(ctx context.Context, alertID string) error {
+	lastHash := strings.LastIndex(alertID, "#")
+	if lastHash < 0 {
+		return fmt.Errorf("MarkAlertAsRead: invalid alert_id format: %s", alertID)
+	}
+	userDeviceID := alertID[:lastHash]
+	tsStr := alertID[lastHash+1:]
+
+	_, err := store.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(store.TableName),
+		Key: map[string]types.AttributeValue{
+			"user_device_id": &types.AttributeValueMemberS{Value: userDeviceID},
+			"timestamp":      &types.AttributeValueMemberN{Value: tsStr},
+		},
+		UpdateExpression: aws.String("SET is_read = :true"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":true": &types.AttributeValueMemberBOOL{Value: true},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("MarkAlertAsRead: alert_id=%s: %w", alertID, err)
+	}
+	return nil
 }
 
 // filters a user's alerts by severity
