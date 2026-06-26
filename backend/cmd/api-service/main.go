@@ -119,6 +119,7 @@ func main() {
 		device.GET("/devices/:id/alerts", deviceHandler.GetDeviceAlerts)
 		device.GET("/system/overview", deviceHandler.GetSystemOverview)
 		device.POST("/devices/:id/commands", deviceHandler.SendCommand)
+		device.PUT("/devices/:id/preferences", deviceHandler.SetDevicePreference)
 		device.PUT("/alerts/:id/read", deviceHandler.MarkAlertRead)
 
 		authRoutes := v1.Group("/auth")

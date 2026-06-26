@@ -601,18 +601,7 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 				"device_id", deviceID, "action", req.Action, "error", updateErr)
 		}
 	}
-
-	if req.Action == "set_normal_unlock_duration" {
-		if duration, ok := req.Parameters["duration"].(float64); ok && duration > 0 {
-			if prefErr := handler.StateStore.UpdateDoorPreference(
-				context.Request.Context(), userID, deviceID, duration,
-			); prefErr != nil {
-				slog.Warn("door preference update failed",
-					"device_id", deviceID, "error", prefErr)
-			}
-		}
-	}
-
+	
 	commandRecord := models.Command{
 		RequestID:  requestID,
 		UserID:     userID,
@@ -630,5 +619,31 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 	context.JSON(http.StatusAccepted, gin.H{
 		"message":    "Command dispatched successfully",
 		"request_id": requestID,
+	})
+}
+
+// PUT /api/v1/devices/:id/preferences
+func (handler *DeviceHandler) SetDevicePreference(context *gin.Context) {
+	userID := context.GetString("user_id")
+	deviceID := context.Param("id")
+
+	var req struct {
+		NormalUnlockDuration float64 `json:"normal_unlock_duration" binding:"required,gt=0"`
+	}
+	if err := context.ShouldBindJSON(&req); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{"error": "normal_unlock_duration is required and must be greater than 0"})
+		return
+	}
+
+	if err := handler.StateStore.UpdateDoorPreference(
+		context.Request.Context(), userID, deviceID, req.NormalUnlockDuration,
+	); err != nil {
+		slog.Error("failed to update door preference", "device_id", deviceID, "error", err)
+		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save preference"})
+		return
+	}
+
+	context.JSON(http.StatusOK, gin.H{
+		"normal_unlock_duration": req.NormalUnlockDuration,
 	})
 }
