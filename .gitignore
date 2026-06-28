@@ -12,3 +12,5 @@ mobile/.gradle/
 
 # AWS IoT Certificates
 devices/certs/
+certs/
+devices/certs/

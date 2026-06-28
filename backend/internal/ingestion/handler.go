@@ -3,7 +3,6 @@ package ingestion
 import (
 	"context"
 	"errors"
-	"time"
 	"fmt"
 	"log/slog"
 	"os"
@@ -148,10 +147,6 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 
 	if envelope.Type == "gas-sensor" {
 		service.Engine.HandleGas(ctx, envelope.UserID, envelope.DeviceID, envelope.Payload)
-	}
-
-	if envelope.Type == "gas-sensor" {
-		service.Engine.HandleGas(ctx, envelope.DeviceID, envelope.Payload)
 	}
 
 	if err := service.TelemetryStore.SaveTelemetry(ctx, data); err != nil {

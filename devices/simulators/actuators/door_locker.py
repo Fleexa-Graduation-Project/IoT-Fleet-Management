@@ -16,6 +16,7 @@ class DoorLocker(BaseDevice):
 
     def __init__(self, config: DeviceConfig):
         super().__init__(config)
+        logger.warning(f"[{self.config.device_id}] INITIALIZED -> Defaulting to LOCKED state. If this was unexpected, the simulator restarted.")
         self.lock_state  = LockStatus.LOCKED
         self.battery_level = 100.0
         self.is_jammed    = False
@@ -49,6 +50,7 @@ class DoorLocker(BaseDevice):
     def _execute_lock(self) -> bool:
         if self.is_jammed:
             return False
+        logger.info(f"[{self.config.device_id}] Executing LOCK action. State changing to LOCKED.")
         self.lock_state  = LockStatus.LOCKED
         self.lock_attempts += 1
         return True
@@ -56,6 +58,7 @@ class DoorLocker(BaseDevice):
     def _execute_unlock(self) -> bool:
         if self.is_jammed:
             return False
+        logger.info(f"[{self.config.device_id}] Executing UNLOCK action. State changing to UNLOCKED.")
         self.lock_state = LockStatus.UNLOCKED
         self.last_unlock_time = int(time.time())
         self.lock_attempts += 1

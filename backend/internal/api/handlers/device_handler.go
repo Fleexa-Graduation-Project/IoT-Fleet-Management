@@ -60,8 +60,6 @@ func (handler *DeviceHandler) GetDevices(context *gin.Context) {
 	}
 	context.JSON(http.StatusOK, gin.H{"data": states})
 }
-	*/
-
 
 // GET /api/v1/alerts?limit=20&before=<timestamp>
 func (handler *DeviceHandler) GetSortedAlerts(context *gin.Context) {
@@ -100,23 +98,7 @@ func (handler *DeviceHandler) GetSortedAlerts(context *gin.Context) {
 		"next_cursor": nextCursor,
 	})
 }
-//GET /alerts (notifications for all devices)
-func (handler *DeviceHandler) GetSortedAlerts(context *gin.Context) {
-	now := time.Now().Unix()
-	cutoff := now - (7 * 86400) 
 
-	alertList, err := handler.AlertStore.GetAllAlerts(context.Request.Context(), cutoff)
-	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch global alerts"})
-		return
-	}
-
-	sort.Slice(alertList, func(i, j int) bool {
-		return alertList[i].Timestamp > alertList[j].Timestamp
-	})
-
-	context.JSON(http.StatusOK, gin.H{"data": alertList})
-}
 
 // showDoorStats: last 5 recent events, last activity time, security alert status
 func showDoorStats(payload map[string]interface{}, history []models.Telemetry, now int64) {
@@ -265,28 +247,6 @@ func (handler *DeviceHandler) GetDeviceByID(context *gin.Context) {
 			state.Payload["recent_events"] = telemetry.GetGasEvents(recentHistory)
 		}
 	}
-	if state.Type == "temp-sensor" {
-		now := time.Now().Unix()
-		cutoff24h := now - 86400
-		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 0, cutoff24h)
-		if dbErr != nil {
-			slog.Warn("failed to fetch recent temp history", "device_id", deviceID, "error", dbErr)
-		} else {
-			stats, _ := telemetry.CalculateTempState(recentHistory, "temp", now)
-			state.Payload["Min"] = stats.Min
-			state.Payload["Max"] = stats.Max
-			state.Payload["Average"] = stats.Average
-		}
-	}
-
-	if state.Type == "gas-sensor" {
-		recentHistory, dbErr := handler.TelemetryStore.GetTelemetryHistory(context.Request.Context(), deviceID, 50, 0)
-		if dbErr != nil {
-			slog.Warn("failed to fetch recent gas history", "device_id", deviceID, "error", dbErr)
-		} else if len(recentHistory) > 0 {
-			state.Payload["recent_events"] = telemetry.GetGasEvents(recentHistory)
-		}
-	}
 	
 
 	context.JSON(http.StatusOK, state)
@@ -315,6 +275,8 @@ func (handler *DeviceHandler) getMonthlyData(ctx context.Context, userID, device
 		data, err := handler.S3Fetcher.GetMonthlyChart(ctx, currentS3Key)
 		if err == nil {
 			currData = data
+		} else {
+			slog.Error("Failed to fetch S3 current monthly chart", "key", currentS3Key, "error", err)
 		}
 	}()
 
@@ -325,6 +287,8 @@ func (handler *DeviceHandler) getMonthlyData(ctx context.Context, userID, device
 			data, err := handler.S3Fetcher.GetMonthlyChart(ctx, previousS3Key)
 			if err == nil {
 				prevData = data
+			} else {
+				slog.Error("Failed to fetch S3 previous monthly chart", "key", previousS3Key, "error", err)
 			}
 		}()
 	}
@@ -361,6 +325,8 @@ func (handler *DeviceHandler) getMonthlyAlerts(ctx context.Context, userID strin
 		data, err := handler.S3Fetcher.GetMonthlyAlerts(ctx, currentS3Key)
 		if err == nil {
 			currData = data
+		} else {
+			slog.Error("Failed to fetch S3 current monthly alerts", "key", currentS3Key, "error", err)
 		}
 	}()
 
@@ -371,6 +337,8 @@ func (handler *DeviceHandler) getMonthlyAlerts(ctx context.Context, userID strin
 			data, err := handler.S3Fetcher.GetMonthlyAlerts(ctx, previousS3Key)
 			if err == nil {
 				prevData = data
+			} else {
+				slog.Error("Failed to fetch S3 previous monthly alerts", "key", previousS3Key, "error", err)
 			}
 		}()
 	}

@@ -403,43 +403,6 @@ func GetGasEvents(history []models.Telemetry) []map[string]interface{} {
 	}
 	return formatted
 }
-//gas alerts and warnings
-func GetGasEvents(history []models.Telemetry) []map[string]interface{} {
-	formatted := make([]map[string]interface{}, 0)
-	now := time.Now().Unix()
-
-	for _, record := range history {
-		if len(formatted) == 5 {
-			break
-		}
-		status, _ := record.Payload["status"].(string)
-		alarm, _ := record.Payload["alarm_on"].(bool)
-		
-		if status == "SAFE" && !alarm {
-			continue                    //skip normal readings
-		}
-
-		description := "Gas level Exceed safe limit"
-		if status == "WARNING" {
-			description = "Gas spike detected"
-		}
-
-		levelStr := ""
-		if val, ok := record.Payload["gas_level"].(float64); ok {
-			levelStr = fmt.Sprintf("%.0f PPM", val)
-		} else if intVal, ok := record.Payload["gas_level"].(int); ok {
-			levelStr = fmt.Sprintf("%d PPM", intVal)
-		}
-
-		formatted = append(formatted, map[string]interface{}{
-		"description": description,
-			"gas_level":   levelStr,
-			"time":        TimeAgo(record.Timestamp, now),
-			"timestamp":   record.Timestamp,
-		})
-	}
-	return formatted
-}
 
 // calculating the total used hours per time slot
 func CalculateACUsage(history []models.Telemetry, now int64, period string) []ChartPoint {
