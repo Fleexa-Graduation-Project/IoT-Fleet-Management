@@ -1,19 +1,22 @@
-# Build Lambda from cmd/api-service/main.go
 resource "null_resource" "build_api_lambda" {
-  triggers = {
-    always_run = timestamp()
-  }
+  triggers = { always_run = timestamp() }
+
   provisioner "local-exec" {
-    command = "cd ${path.root}/../../backend && GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o bootstrap-api cmd/api-service/main.go"
+    command = <<-EOT
+      set -e
+      mkdir -p ${path.root}/../../backend/dist/api
+      cd ${path.root}/../../backend
+      GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o dist/api/bootstrap cmd/api-service/main.go
+      chmod +x dist/api/bootstrap
+    EOT
   }
 }
 
 data "archive_file" "api_lambda_zip" {
   type        = "zip"
-  source_file = "${path.root}/../../backend/bootstrap-api"
-  output_path = "${path.root}/../../backend/api-service.zip"
-
-  depends_on = [null_resource.build_api_lambda]
+  source_file = "${path.root}/../../backend/dist/api/bootstrap"
+  output_path = "${path.root}/../../backend/dist/api/api-service.zip"
+  depends_on  = [null_resource.build_api_lambda]
 }
 
 resource "aws_iam_role" "api_lambda_role" {
@@ -22,11 +25,9 @@ resource "aws_iam_role" "api_lambda_role" {
     Version = "2012-10-17"
     Statement = [
       {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
+        Action    = "sts:AssumeRole"
+        Effect    = "Allow"
+        Principal = { Service = "lambda.amazonaws.com" }
       }
     ]
   })
@@ -42,79 +43,57 @@ resource "aws_lambda_function" "api_lambda" {
   filename         = data.archive_file.api_lambda_zip.output_path
   source_code_hash = data.archive_file.api_lambda_zip.output_base64sha256
   role             = aws_iam_role.api_lambda_role.arn
-  handler          = "bootstrap-api"
+  handler          = "bootstrap"
   runtime          = "provided.al2023"
   architectures    = ["arm64"]
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
+      ENVIRONMENT          = var.environment
+      STATE_TABLE          = "${var.project_name}-${var.environment}-device-state"
+      TELEMETRY_TABLE      = "${var.project_name}-${var.environment}-telemetry"
+      ALERTS_TABLE         = "${var.project_name}-${var.environment}-alerts"
+      COMMANDS_TABLE       = "${var.project_name}-${var.environment}-commands"
+      USERS_TABLE          = var.users_table_name
+      IOT_ENDPOINT         = var.iot_endpoint
+      COGNITO_USER_POOL_ID = var.cognito_user_pool_id
+      COGNITO_CLIENT_ID    = var.cognito_client_id
+      BUCKET_NAME          = var.bucket_name
     }
   }
 
   depends_on = [null_resource.build_api_lambda]
 }
 
-resource "aws_api_gateway_rest_api" "api" {
-  name             = "${var.project_name}-${var.environment}-api"
-  fail_on_warnings = true
-
-  endpoint_configuration {
-    types = ["REGIONAL"]
-  }
+resource "aws_apigatewayv2_api" "api" {
+  name          = "${var.project_name}-${var.environment}-api"
+  protocol_type = "HTTP"
 }
 
-resource "aws_api_gateway_resource" "proxy" {
-  rest_api_id = aws_api_gateway_rest_api.api.id
-  parent_id   = aws_api_gateway_rest_api.api.root_resource_id
-  path_part   = "{proxy+}"
+resource "aws_apigatewayv2_stage" "api" {
+  api_id      = aws_apigatewayv2_api.api.id
+  name        = "$default"
+  auto_deploy = true
 }
 
-resource "aws_api_gateway_method" "proxy" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.proxy.id
-  http_method   = "ANY"
-  authorization = "NONE"
+resource "aws_apigatewayv2_integration" "lambda_proxy" {
+  api_id                 = aws_apigatewayv2_api.api.id
+  integration_type       = "AWS_PROXY"
+  integration_method     = "POST"
+  integration_uri        = aws_lambda_function.api_lambda.invoke_arn
+  payload_format_version = "2.0"
 }
 
-resource "aws_api_gateway_integration" "lambda_proxy" {
-  rest_api_id             = aws_api_gateway_rest_api.api.id
-  resource_id             = aws_api_gateway_method.proxy.resource_id
-  http_method             = aws_api_gateway_method.proxy.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.api_lambda.invoke_arn
+resource "aws_apigatewayv2_route" "proxy" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "ANY /{proxy+}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_proxy.id}"
 }
 
-resource "aws_api_gateway_method" "proxy_root" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_rest_api.api.root_resource_id
-  http_method   = "ANY"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_integration" "lambda_proxy_root" {
-  rest_api_id             = aws_api_gateway_rest_api.api.id
-  resource_id             = aws_api_gateway_method.proxy_root.resource_id
-  http_method             = aws_api_gateway_method.proxy_root.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.api_lambda.invoke_arn
-}
-
-resource "aws_api_gateway_deployment" "api" {
-  rest_api_id = aws_api_gateway_rest_api.api.id
-
-  depends_on = [
-    aws_api_gateway_integration.lambda_proxy,
-    aws_api_gateway_integration.lambda_proxy_root
-  ]
-}
-
-resource "aws_api_gateway_stage" "api" {
-  deployment_id = aws_api_gateway_deployment.api.id
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  stage_name    = var.environment
+resource "aws_apigatewayv2_route" "proxy_root" {
+  api_id    = aws_apigatewayv2_api.api.id
+  route_key = "ANY /"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_proxy.id}"
 }
 
 resource "aws_lambda_permission" "apigw_lambda" {
@@ -122,7 +101,7 @@ resource "aws_lambda_permission" "apigw_lambda" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.api_lambda.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/*"
+  source_arn    = "${aws_apigatewayv2_api.api.execution_arn}/*/*"
 }
 
 resource "aws_iam_role_policy" "api_lambda_permissions" {
@@ -134,20 +113,35 @@ resource "aws_iam_role_policy" "api_lambda_permissions" {
       {
         Effect = "Allow"
         Action = [
-          "dynamodb:PutItem",
-          "dynamodb:GetItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:Query",
-          "dynamodb:Scan",
-          "dynamodb:DeleteItem"
+          "dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem",
+          "dynamodb:Query", "dynamodb:Scan", "dynamodb:DeleteItem"
         ]
         Resource = "*"
       },
       {
+        Effect   = "Allow"
+        Action   = ["iot:Publish", "iot:Connect"]
+        Resource = "*"
+      },
+      {
+        Sid      = "FleexaS3ChartReader"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = ["arn:aws:s3:::*/*"]
+      },
+      {
+        Sid    = "FleexaCognitoOps"
         Effect = "Allow"
         Action = [
-          "iot:Publish",
-          "iot:Connect"
+          "cognito-idp:SignUp",
+          "cognito-idp:AdminConfirmSignUp",
+          "cognito-idp:AdminUpdateUserAttributes",
+          "cognito-idp:InitiateAuth",
+          "cognito-idp:ChangePassword",
+          "cognito-idp:ForgotPassword",
+          "cognito-idp:ConfirmForgotPassword",
+          "cognito-idp:GetUser",
+          "cognito-idp:DeleteUser"
         ]
         Resource = "*"
       }

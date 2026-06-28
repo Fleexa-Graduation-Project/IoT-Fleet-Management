@@ -36,19 +36,19 @@ resource "aws_iot_policy" "device_policy" {
         Effect = "Allow"
         Action = ["iot:Publish"]
         Resource = [
-          "arn:aws:iot:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:topic/devices/$${iot:Connection.Thing.ThingName}/telemetry",
-          "arn:aws:iot:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:topic/devices/$${iot:Connection.Thing.ThingName}/alerts"
+          "arn:aws:iot:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:topic/devices/*/$${iot:Connection.Thing.ThingName}/telemetry",
+          "arn:aws:iot:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:topic/devices/*/$${iot:Connection.Thing.ThingName}/alerts"
         ]
       },
       {
         Effect   = "Allow"
         Action   = ["iot:Subscribe"]
-        Resource = "arn:aws:iot:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:topicfilter/devices/$${iot:Connection.Thing.ThingName}/commands"
+        Resource = "arn:aws:iot:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:topicfilter/devices/*/$${iot:Connection.Thing.ThingName}/commands"
       },
       {
         Effect   = "Allow"
         Action   = ["iot:Receive"]
-        Resource = "arn:aws:iot:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:topic/devices/$${iot:Connection.Thing.ThingName}/commands"
+        Resource = "arn:aws:iot:${data.aws_region.current.id}:${data.aws_caller_identity.current.account_id}:topic/devices/*/$${iot:Connection.Thing.ThingName}/commands"
       }
     ]
   })

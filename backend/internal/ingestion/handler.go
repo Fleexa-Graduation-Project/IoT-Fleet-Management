@@ -3,16 +3,22 @@ package ingestion
 import (
 	"context"
 	"errors"
-	"time"
 	"fmt"
 	"log/slog"
+	"os"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/validation"
 	"github.com/Fleexa-Graduation-Project/Backend/models"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
+	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 )
 
 type Service struct {
@@ -24,7 +30,7 @@ type Service struct {
 }
 
 func (s *Service) HandleRequest(ctx context.Context, event map[string]interface{}) (err error) {
-	start := time.Now()  //start when the rwuest enters the handler
+	start := time.Now()
 	defer func() {
 		if r := recover(); r != nil {
 			s.Logger.Error("CRITICAL: lambda panic recovered", "panic", r)
@@ -33,19 +39,18 @@ func (s *Service) HandleRequest(ctx context.Context, event map[string]interface{
 
 		duration := time.Since(start)
 		s.Logger.Info("lambda execution complete",
-			"execution_time", duration.Milliseconds(),
+			"execution_time_ms", duration.Milliseconds(),
 			"execution_time", duration.String(),
 			"success", err == nil,
 		)
-	}() 
+	}()
 
-	//validating the message
 	deviceID, messageType, envelope, isBatch, err := validation.ValidateMessage(event)
 	if err != nil {
 		s.logValidationError(err, envelope.DeviceID)
 		return err
 	}
-	
+
 	switch messageType {
 	case "telemetry":
 		return s.handleTelemetry(ctx, deviceID, envelope, isBatch)
@@ -66,7 +71,7 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 			return fmt.Errorf("invalid batch format: items is not a list")
 		}
 
-		service.Logger.Info("processing batch telemetry", "device_id", deviceID, "count", len(items))
+		service.Logger.Info("processing batch telemetry", "user_id", envelope.UserID, "device_id", deviceID, "count", len(items))
 
 		var telemetryList []models.Telemetry
 		var latestReading models.Telemetry
@@ -78,18 +83,19 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 				continue
 			}
 
-			//validating individual item structure
 			if err := validation.ValidatePayload(envelope.Type, itemMap); err != nil {
 				service.Logger.Warn("skipping malformed payload in batch", "error", err)
 				continue
 			}
 
-			timestamp := envelope.Timestamp
+			// Start with the envelope-level timestamp; override per-item if present.
+			timestamp := models.EpochTime(envelope.Timestamp)
 			if itemTs, ok := itemMap["ts"].(float64); ok {
-				timestamp = int64(itemTs)
+				timestamp = models.EpochTime(int64(itemTs))
 			}
 
 			t := models.Telemetry{
+				UserID:    envelope.UserID,
 				DeviceID:  deviceID,
 				Timestamp: timestamp,
 				Type:      envelope.Type,
@@ -98,7 +104,6 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 
 			telemetryList = append(telemetryList, t)
 
-			//select the latest timestamp
 			if latestReading.Timestamp == 0 || t.Timestamp > latestReading.Timestamp {
 				latestReading = t
 			}
@@ -110,22 +115,38 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 				return err
 			}
 
-			return service.StateStore.UpdateFromTelemetry(ctx, latestReading)
+			// Broadcast status update to all users
+			userIDs := service.fetchAllUsers(ctx)
+			if len(userIDs) == 0 {
+				return service.StateStore.UpdateFromTelemetry(ctx, latestReading)
+			}
+			
+			var lastErr error
+			originalUserID := latestReading.UserID
+			for _, uid := range userIDs {
+				latestReading.UserID = uid
+				if err := service.StateStore.UpdateFromTelemetry(ctx, latestReading); err != nil {
+					lastErr = err
+				}
+			}
+			latestReading.UserID = originalUserID // restore
+			return lastErr
 		}
 		return nil
 	}
 
 	data := models.Telemetry{
+		UserID:    envelope.UserID,
 		DeviceID:  envelope.DeviceID,
-		Timestamp: envelope.Timestamp,
+		Timestamp: models.EpochTime(envelope.Timestamp),
 		Type:      envelope.Type,
 		Payload:   envelope.Payload,
 	}
 
-	service.Logger.Info("saving single telemetry", "device_id", deviceID)
+	service.Logger.Info("saving single telemetry", "user_id", envelope.UserID, "device_id", deviceID)
 
 	if envelope.Type == "gas-sensor" {
-		service.Engine.HandleGas(ctx, envelope.DeviceID, envelope.Payload)
+		service.Engine.HandleGas(ctx, envelope.UserID, envelope.DeviceID, envelope.Payload)
 	}
 
 	if err := service.TelemetryStore.SaveTelemetry(ctx, data); err != nil {
@@ -133,15 +154,32 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 		return err
 	}
 
-	return service.StateStore.UpdateFromTelemetry(ctx, data)
+	// Broadcast status update to all users
+	userIDs := service.fetchAllUsers(ctx)
+	if len(userIDs) == 0 {
+		return service.StateStore.UpdateFromTelemetry(ctx, data)
+	}
+
+	var lastErr error
+	originalUserID := data.UserID
+	for _, uid := range userIDs {
+		data.UserID = uid
+		if err := service.StateStore.UpdateFromTelemetry(ctx, data); err != nil {
+			lastErr = err
+		}
+	}
+	data.UserID = originalUserID // restore
+
+	return lastErr
 }
 
 func (service *Service) handleAlert(ctx context.Context, deviceID string, envelope models.MQTTEnvelope) error {
 	severity, _ := envelope.Payload["severity"].(string)
 
 	alert := models.Alert{
-		DeviceID:  deviceID,
-		Timestamp: envelope.Timestamp,
+		UserID:    envelope.UserID,
+		DeviceID:  envelope.DeviceID,
+		Timestamp: models.EpochTime(envelope.Timestamp),
 		Type:      envelope.Type,
 		Severity:  severity,
 		Payload:   envelope.Payload,
@@ -153,7 +191,16 @@ func (service *Service) handleAlert(ctx context.Context, deviceID string, envelo
 		return err
 	}
 
-	return service.StateStore.UpdateHeartbeat(ctx, deviceID)
+	service.Logger.Info("alert saved, sending notification to", "user_id", envelope.UserID, "device_id", deviceID, "severity", severity)
+
+	title := fmt.Sprintf("%s — %s", severity, envelope.Type)
+	description, _ := envelope.Payload["description"].(string)
+	if description == "" {
+		description = fmt.Sprintf("%s alert triggered", envelope.Type)
+	}
+	service.Engine.Notify(ctx, envelope.UserID, severity, title, description)
+
+	return service.StateStore.UpdateHeartbeat(ctx, envelope.UserID, deviceID)
 }
 
 func (service *Service) logValidationError(err error, deviceID string) {
@@ -167,4 +214,35 @@ func (service *Service) logValidationError(err error, deviceID string) {
 	default:
 		service.Logger.Error("unexpected validation error", "error", err)
 	}
+}
+
+func (service *Service) fetchAllUsers(ctx context.Context) []string {
+	var userIDs []string
+	tableName := os.Getenv("USERS_TABLE")
+	if tableName == "" {
+		service.Logger.Warn("USERS_TABLE environment variable not set, cannot broadcast status")
+		return userIDs
+	}
+
+	input := &dynamodb.ScanInput{
+		TableName:            aws.String(tableName),
+		ProjectionExpression: aws.String("user_id"),
+	}
+
+	paginator := dynamodb.NewScanPaginator(db.Client, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			service.Logger.Error("failed to scan users table", "error", err)
+			break
+		}
+		for _, item := range page.Items {
+			if uid, ok := item["user_id"]; ok {
+				if s, ok := uid.(*types.AttributeValueMemberS); ok {
+					userIDs = append(userIDs, s.Value)
+				}
+			}
+		}
+	}
+	return userIDs
 }

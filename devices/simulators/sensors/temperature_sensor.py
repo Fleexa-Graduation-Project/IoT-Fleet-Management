@@ -59,13 +59,13 @@ class TemperatureSensor(BaseDevice):
             self.publish_alert("HIGH_TEMPERATURE_CRITICAL", "CRITICAL",
                                {"temp": self.current_temp, "threshold": 40})
         elif self.current_temp >= 35:
-            self.publish_alert("HIGH_TEMPERATURE_WARNING", "MEDIUM",
+            self.publish_alert("HIGH_TEMPERATURE_WARNING", "WARNING",
                                {"temp": self.current_temp, "threshold": 35})
         if self.current_temp <= -20:
             self.publish_alert("LOW_TEMPERATURE_CRITICAL", "CRITICAL",
                                {"temp": self.current_temp, "threshold": -20})
         if self.current_humidity >= 90:
-            self.publish_alert("HIGH_HUMIDITY_WARNING", "MEDIUM",
+            self.publish_alert("HIGH_HUMIDITY_WARNING", "WARNING",
                                {"humidity_percent": self.current_humidity, "threshold": 90})
 
     def generate_telemetry(self) -> Dict[str, Any]:

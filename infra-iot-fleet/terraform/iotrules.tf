@@ -8,13 +8,13 @@ data "aws_lambda_function" "alert_processor" {
   function_name = var.alert_processor_lambda_name
 }
 
-# ─── IoT Rule: Telemetry → Lambda ───────────────────────────────────────────
+# ─── IoT Rule: Telemetry → Lambda ─────────────────────────────────────────────
 resource "aws_iot_topic_rule" "telemetry_processor" {
   count       = var.enable_iot_lambda_rules ? 1 : 0
   name        = "${replace(var.project_name, "-", "_")}_telemetry_processor"
   description = "Route telemetry messages to Lambda for DynamoDB storage"
   enabled     = true
-  sql         = "SELECT topic() as topic, * as payload FROM 'devices/+/telemetry'"
+  sql         = "SELECT topic() as topic, * as payload FROM 'devices/+/+/telemetry'"
   sql_version = "2016-03-23"
 
   lambda {
@@ -28,7 +28,7 @@ resource "aws_iot_topic_rule" "alert_processor" {
   name        = "${replace(var.project_name, "-", "_")}_alert_processor"
   description = "Route alert messages to Lambda for alert log storage"
   enabled     = true
-  sql         = "SELECT topic() as topic, * as payload FROM 'devices/+/alerts'"
+  sql         = "SELECT topic() as topic, * as payload FROM 'devices/+/+/alerts'"
   sql_version = "2016-03-23"
 
   lambda {
@@ -36,7 +36,7 @@ resource "aws_iot_topic_rule" "alert_processor" {
   }
 }
 
-# ─── Lambda Invoke Permissions ───────────────────────────────────────────────
+# ─── Lambda Invoke Permissions ──────────────────────────────────────────────
 resource "aws_lambda_permission" "iot_invoke_telemetry" {
   count         = var.enable_iot_lambda_rules ? 1 : 0
   statement_id  = "AllowIoTInvokeTelemetry"

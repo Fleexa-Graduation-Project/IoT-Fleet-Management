@@ -1,17 +1,23 @@
 resource "null_resource" "build_lambda" {
   triggers = {
-    always_run = timestamp() # simplify to run always or based on hash of files
+    always_run = timestamp()
   }
 
   provisioner "local-exec" {
-    command = "cd ${path.module}/../../backend && GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o bootstrap cmd/iot-ingestion/main.go"
+    command = <<-EOT
+      set -e
+      mkdir -p ${path.module}/../../backend/dist/ingestion
+      cd ${path.module}/../../backend
+      GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o dist/ingestion/bootstrap cmd/iot-ingestion/main.go
+      chmod +x dist/ingestion/bootstrap
+    EOT
   }
 }
 
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_file = "${path.module}/../../backend/bootstrap"
-  output_path = "${path.module}/../../backend/iot-ingestion.zip"
+  source_file = "${path.module}/../../backend/dist/ingestion/bootstrap"
+  output_path = "${path.module}/../../backend/dist/ingestion/iot-ingestion.zip"
 
   depends_on = [null_resource.build_lambda]
 }
@@ -26,10 +32,7 @@ data "aws_iam_policy_document" "iot_ingestion_policy" {
       "dynamodb:Query",
       "dynamodb:Scan"
     ]
-    # In a real environment, restrict to the specific tables from the dynamodb module
-    resources = [
-      "*"
-    ]
+    resources = ["*"]
   }
 }
 
@@ -39,7 +42,6 @@ module "iot_ingestion_lambda" {
   project_name = var.project_name
   environment  = var.environment
 
-  # explicitly define lambda name for AWS as requested
   function_name = "processing_main_lambda"
 
   lambda_zip_path  = data.archive_file.lambda_zip.output_path
@@ -47,15 +49,48 @@ module "iot_ingestion_lambda" {
 
   custom_policy_json = data.aws_iam_policy_document.iot_ingestion_policy.json
 
+  # Env var names must match exactly what the Go code reads via os.Getenv()
   environment_variables = {
-
-    ENVIRONMENT                 = var.environment
-    DYNAMODB_TABLE_NAME         = "${var.project_name}-${var.environment}-telemetry"
-    DYNAMODB_ALERTS_TABLE       = "${var.project_name}-${var.environment}-alerts"
-    DYNAMODB_DEVICE_STATE_TABLE = "${var.project_name}-${var.environment}-device-state"
-    DYNAMODB_COMMANDS_TABLE     = "${var.project_name}-${var.environment}-commands"
+    ENVIRONMENT          = var.environment
+    TELEMETRY_TABLE      = "${var.project_name}-${var.environment}-telemetry"
+    ALERTS_TABLE         = "${var.project_name}-${var.environment}-alerts"
+    STATE_TABLE          = "${var.project_name}-${var.environment}-device-state"
+    COMMANDS_TABLE       = "${var.project_name}-${var.environment}-commands"
+    USERS_TABLE          = "iot-fleet_Users"
+    COGNITO_USER_POOL_ID = module.cognito.user_pool_id
+    COGNITO_CLIENT_ID    = module.cognito.client_id
+    FIREBASE_CREDENTIALS = "./firebase-adminsdk.json"
   }
 
   depends_on = [data.archive_file.lambda_zip]
+}
 
+data "archive_file" "aggregator_lambda_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../backend/scripts/daily_aggregator.py"
+  output_path = "${path.module}/../../backend/dist/aggregator/daily_aggregator.zip"
+}
+
+resource "null_resource" "build_door_watch_lambda" {
+  triggers = {
+    always_run = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      mkdir -p ${path.module}/../../backend/dist/door-watch
+      cd ${path.module}/../../backend
+      GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o dist/door-watch/bootstrap cmd/door-watch/main.go
+      chmod +x dist/door-watch/bootstrap
+    EOT
+  }
+}
+
+data "archive_file" "door_watch_lambda_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../backend/dist/door-watch/bootstrap"
+  output_path = "${path.module}/../../backend/dist/door-watch/door-watch.zip"
+
+  depends_on = [null_resource.build_door_watch_lambda]
 }

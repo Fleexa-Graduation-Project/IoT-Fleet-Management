@@ -25,9 +25,9 @@ type StateStore struct {
 }
 
 func NewStateStore() (*StateStore, error) {
-	tableName := os.Getenv("DYNAMODB_DEVICE_STATE_TABLE")
+	tableName := os.Getenv("STATE_TABLE")
 	if tableName == "" {
-		return nil, fmt.Errorf("DYNAMODB_DEVICE_STATE_TABLE is not set")
+		return nil, fmt.Errorf("STATE_TABLE environment variable is not set")
 	}
 
 	if db.Client == nil {
@@ -39,11 +39,12 @@ func NewStateStore() (*StateStore, error) {
 		TableName: tableName,
 	}, nil
 }
-//updates live dashboard
-func (s *StateStore) UpdateFromTelemetry(ctx context.Context,tel models.Telemetry,) error {
+
+// updates live dashboard — pure upsert, no timestamp guard
+func (s *StateStore) UpdateFromTelemetry(ctx context.Context, tel models.Telemetry) error {
 
 	now := time.Now().Unix()
-	
+
 	opState, health := ExtractState(tel.Type, tel.Payload)
 	status := "ONLINE"
 	payload, err := attributevalue.Marshal(tel.Payload)
@@ -54,15 +55,14 @@ func (s *StateStore) UpdateFromTelemetry(ctx context.Context,tel models.Telemetr
 	input := &dynamodb.UpdateItemInput{
 		TableName: aws.String(s.TableName),
 		Key: map[string]types.AttributeValue{
+			"user_id":   &types.AttributeValueMemberS{
+				Value: tel.UserID},
 			"device_id": &types.AttributeValueMemberS{
 				Value: tel.DeviceID,
 			},
 		},
-		ConditionExpression: aws.String(
-            "attribute_not_exists(last_seen_at) OR last_seen_at <= :last_seen",
-        ),
 		UpdateExpression: aws.String(`
-			SET 
+			SET
 				#type = :type,
 				#status = :status,
 				operational_state = :op_state,
@@ -80,7 +80,7 @@ func (s *StateStore) UpdateFromTelemetry(ctx context.Context,tel models.Telemetr
 			":status":     &types.AttributeValueMemberS{Value: status},
 			":op_state":   &types.AttributeValueMemberS{Value: opState},
 			":health":     &types.AttributeValueMemberS{Value: health},
-			":payload":    payload, // This stores the raw map (temp, gas_level, etc.)
+			":payload":    payload, //stores payload map(temp, gas_level, etc.)
 			":last_seen":  &types.AttributeValueMemberN{Value: fmt.Sprint(tel.Timestamp)},
 			":updated_at": &types.AttributeValueMemberN{Value: fmt.Sprint(now)},
 		},
@@ -97,10 +97,10 @@ func (s *StateStore) UpdateFromTelemetry(ctx context.Context,tel models.Telemetr
 
 
 //extracting op state and health from the device type and its payload
-func ExtractState(deviceType string,payload map[string]interface{},) (string, string)  {
+func ExtractState(deviceType string, payload map[string]interface{}) (string, string) {
 
 	deviceRules, ok := Rules[deviceType]
-opState := "UNKNOWN"
+	opState := "UNKNOWN"
 	health := "DEGRADED"
 
 	if ok {
@@ -111,31 +111,30 @@ opState := "UNKNOWN"
 	return opState, health
 }
 
-func (s *StateStore) UpdateHeartbeat(ctx context.Context,deviceID string,) error {
-    now := time.Now().Unix()
+// marks the device online for alert-type messages — pure upsert, no timestamp guard
+func (s *StateStore) UpdateHeartbeat(ctx context.Context, userID, deviceID string) error {
+	now := time.Now().Unix()
 
-    input := &dynamodb.UpdateItemInput{
-        TableName: aws.String(s.TableName),
-        Key: map[string]types.AttributeValue{
-            "device_id": &types.AttributeValueMemberS{Value: deviceID},
-        },
-		ConditionExpression: aws.String(
-            "attribute_not_exists(last_seen_at) OR last_seen_at <= :last_seen",
-        ),
-        UpdateExpression: aws.String(
-            "SET #status = :status, last_seen_at = :last_seen",
-        ),
-        ExpressionAttributeNames: map[string]string{
-            "#status": "status",
-        },
-        ExpressionAttributeValues: map[string]types.AttributeValue{
-            ":status":    &types.AttributeValueMemberS{Value: "ONLINE"},
-            ":last_seen": &types.AttributeValueMemberN{Value: fmt.Sprint(now)},
-        },
-    }
+	input := &dynamodb.UpdateItemInput{
+		TableName: aws.String(s.TableName),
+		Key: map[string]types.AttributeValue{
+			"user_id":   &types.AttributeValueMemberS{Value: userID},
+			"device_id": &types.AttributeValueMemberS{Value: deviceID},
+		},
+		UpdateExpression: aws.String(
+			"SET #status = :status, last_seen_at = :last_seen",
+		),
+		ExpressionAttributeNames: map[string]string{
+			"#status": "status",
+		},
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":status":    &types.AttributeValueMemberS{Value: "ONLINE"},
+			":last_seen": &types.AttributeValueMemberN{Value: fmt.Sprint(now)},
+		},
+	}
 
-    _, err := s.Client.UpdateItem(ctx, input)
-    return err
+	_, err := s.Client.UpdateItem(ctx, input)
+	return err
 }
 
 func ConnectionStatus(lastSeenAt int64) string {
@@ -146,66 +145,225 @@ func ConnectionStatus(lastSeenAt int64) string {
 }
 
 // retrieve all devices states for the dashboard
-func (store *StateStore) GetAllStates(ctx context.Context) ([]models.DeviceState, error) {
+func (store *StateStore) GetAllStates(ctx context.Context, userID string) ([]models.DeviceState, error) {
 	var states []models.DeviceState
-	
 	var lastEvaluatedKey map[string]types.AttributeValue
 
 	// Keep scanning until we get all devices
 	for {
-		input := &dynamodb.ScanInput{
-			TableName: aws.String(store.TableName),
+		input := &dynamodb.QueryInput{
+			TableName:              aws.String(store.TableName),
+			KeyConditionExpression: aws.String("user_id = :uid"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":uid": &types.AttributeValueMemberS{Value: userID},
+			},
 			ExclusiveStartKey: lastEvaluatedKey, // Start where the last page left off
 		}
 
-		result, err := store.Client.Scan(ctx, input)  // works as select * w/o WHERE clause
+		result, err := store.Client.Query(ctx, input) // works as select * w/o WHERE clause
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan device states: %w", err)
+			return nil, fmt.Errorf("failed to query devices for user %s: %w", userID, err)
 		}
 
 		for _, item := range result.Items {
 			var state models.DeviceState
-			err = attributevalue.UnmarshalMap(item, &state)
-			if err != nil {
-				fmt.Printf("Warning: failed to unmarshal a device state: %v\n", err)
+			if err := attributevalue.UnmarshalMap(item, &state); err != nil {
+				fmt.Printf("Warning: failed to unmarshal device state: %v\n", err)
 				continue
 			}
 			states = append(states, state)
 		}
 		lastEvaluatedKey = result.LastEvaluatedKey
 		if lastEvaluatedKey == nil {
-			break 
+			break
+		}
 	}
-}
 
 	return states, nil
 }
 
 
 
+func (store *StateStore) GetAllOpenDoors(ctx context.Context) ([]models.DeviceState, error) {
+	var states []models.DeviceState
+
+	// Query for both "OPEN" (door-sensor) and "UNLOCKED" (door-actuator)
+	searchValues := []string{"OPEN", "UNLOCKED"}
+
+	for _, opState := range searchValues {
+		var lastEvaluatedKey map[string]types.AttributeValue
+
+		for {
+			input := &dynamodb.QueryInput{
+				TableName:              aws.String(store.TableName),
+				IndexName:              aws.String("OpenDoorsIndex"),
+				KeyConditionExpression: aws.String("operational_state = :state"),
+				ExpressionAttributeValues: map[string]types.AttributeValue{
+					":state": &types.AttributeValueMemberS{Value: opState},
+				},
+				ExclusiveStartKey: lastEvaluatedKey,
+			}
+
+			result, err := store.Client.Query(ctx, input)
+			if err != nil {
+				return nil, fmt.Errorf("failed to query OpenDoorsIndex for %s: %w", opState, err)
+			}
+
+			for _, item := range result.Items {
+				var state models.DeviceState
+				if err := attributevalue.UnmarshalMap(item, &state); err != nil {
+					continue
+				}
+				states = append(states, state)
+			}
+
+			lastEvaluatedKey = result.LastEvaluatedKey
+			if lastEvaluatedKey == nil {
+				break
+			}
+		}
+	}
+
+	return states, nil
+}
+
+// GetExpiredACTimers scans all devices for AC actuators that are ON and have a
+// timer_end_timestamp that has already passed — used by ac-timer-watch Lambda.
+func (s *StateStore) GetExpiredACTimers(ctx context.Context, now int64) ([]models.DeviceState, error) {
+	var states []models.DeviceState
+	var lastKey map[string]types.AttributeValue
+
+	for {
+		input := &dynamodb.ScanInput{
+			TableName: aws.String(s.TableName),
+			FilterExpression: aws.String(
+				"#type = :acType AND #payload.#ps = :on AND #payload.#ts > :zero AND #payload.#ts <= :now",
+			),
+			ExpressionAttributeNames: map[string]string{
+				"#type":    "type",
+				"#payload": "payload",
+				"#ps":      "power_state",
+				"#ts":      "timer_end_timestamp",
+			},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":acType": &types.AttributeValueMemberS{Value: "ac-actuator"},
+				":on":     &types.AttributeValueMemberS{Value: "ON"},
+				":zero":   &types.AttributeValueMemberN{Value: "0"},
+				":now":    &types.AttributeValueMemberN{Value: fmt.Sprint(now)},
+			},
+			ExclusiveStartKey: lastKey,
+		}
+
+		result, err := s.Client.Scan(ctx, input)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan expired AC timers: %w", err)
+		}
+
+		for _, item := range result.Items {
+			var state models.DeviceState
+			if err := attributevalue.UnmarshalMap(item, &state); err != nil {
+				continue
+			}
+			states = append(states, state)
+		}
+
+		lastKey = result.LastEvaluatedKey
+		if lastKey == nil {
+			break
+		}
+	}
+
+	return states, nil
+}
+
+// UpdateACFields partially updates specific nested payload fields for an AC
+func (s *StateStore) UpdateACFields(ctx context.Context, userID, deviceID string, payloadFields map[string]interface{}, opState string) error {
+	now := time.Now().Unix()
+
+	updateExpr := "SET updated_at = :now"
+	exprNames := map[string]string{}
+	exprValues := map[string]types.AttributeValue{
+		":now": &types.AttributeValueMemberN{Value: fmt.Sprint(now)},
+	}
+
+	i := 0
+	for k, v := range payloadFields {
+		nameKey := fmt.Sprintf("#f%d", i)
+		valKey := fmt.Sprintf(":v%d", i)
+		exprNames[nameKey] = k
+		marshaledVal, err := attributevalue.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("failed to marshal AC field %s: %w", k, err)
+		}
+		exprValues[valKey] = marshaledVal
+		updateExpr += fmt.Sprintf(", payload.%s = %s", nameKey, valKey)
+		i++
+	}
+
+	if opState != "" {
+		exprNames["#op"] = "operational_state"
+		exprValues[":op"] = &types.AttributeValueMemberS{Value: opState}
+		updateExpr += ", #op = :op"
+	}
+
+	_, err := s.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(s.TableName),
+		Key: map[string]types.AttributeValue{
+			"user_id":   &types.AttributeValueMemberS{Value: userID},
+			"device_id": &types.AttributeValueMemberS{Value: deviceID},
+		},
+		UpdateExpression:          aws.String(updateExpr),
+		ExpressionAttributeNames:  exprNames,
+		ExpressionAttributeValues: exprValues,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update AC state user_id=%s device_id=%s: %w", userID, deviceID, err)
+	}
+	return nil
+}
+
+//persists the user's normal unlock duration threshold for the door-actuator.
+func (s *StateStore) UpdateDoorPreference(ctx context.Context, userID, deviceID string, normalDuration float64) error {
+	_, err := s.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
+		TableName: aws.String(s.TableName),
+		Key: map[string]types.AttributeValue{
+			"user_id":   &types.AttributeValueMemberS{Value: userID},
+			"device_id": &types.AttributeValueMemberS{Value: deviceID},
+		},
+		UpdateExpression: aws.String("SET normal_unlock_duration = :v, updated_at = :now"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":v":   &types.AttributeValueMemberN{Value: fmt.Sprintf("%g", normalDuration)},
+			":now": &types.AttributeValueMemberN{Value: fmt.Sprint(time.Now().Unix())},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update door preference user_id=%s device_id=%s: %w", userID, deviceID, err)
+	}
+	return nil
+}
+
 // retrieve the device state by id
-func (s *StateStore) GetStateByID(ctx context.Context, deviceID string) (*models.DeviceState, error) {
+func (s *StateStore) GetStateByID(ctx context.Context, userID, deviceID string) (*models.DeviceState, error) {
 	input := &dynamodb.GetItemInput{
 		TableName: aws.String(s.TableName),
 		Key: map[string]types.AttributeValue{
+			"user_id":   &types.AttributeValueMemberS{Value: userID},
 			"device_id": &types.AttributeValueMemberS{Value: deviceID},
 		},
 	}
 
 	result, err := s.Client.GetItem(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get device: %w", err)
+		return nil, fmt.Errorf("failed to get device state user_id=%s device_id=%s: %w", userID, deviceID, err)
 	}
 
 	// If the device doesn't exist, return an empty item map
 	if result.Item == nil {
-		return nil, nil 
+		return nil, nil
 	}
 
-
 	var state models.DeviceState
-	err = attributevalue.UnmarshalMap(result.Item, &state)
-	if err != nil {
+	if err := attributevalue.UnmarshalMap(result.Item, &state); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal device state: %w", err)
 	}
 

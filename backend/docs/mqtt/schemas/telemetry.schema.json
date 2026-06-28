@@ -4,6 +4,7 @@
   "description": "The standard wrapper for all upstream IoT messages",
   "type": "object",
   "required": [
+    "user_id",
     "device_id",
     "timestamp",
     "type",
@@ -11,10 +12,15 @@
   ],
 
   "properties": {
+    "user_id": {
+      "type": "string",
+      "minLength": 3,
+      "description": "Cognito sub of the device owner"
+    },
     "device_id": {
       "type": "string",
       "minLength": 3,
-      "description": "Unique ID like temp-sensor-01"
+      "description": "Unique ID like gas-sensor-01"
     },
 
     "timestamp": {

@@ -15,8 +15,9 @@ Retrieves high-level aggregated data for the Global Dashboard (system health, al
 - **Query Parameters (Optional):**
 
   - `period` (string): `24h`, `7d`, `1m`
+   **Note:** `7d` and `1m` alert data is pre-aggregated nightly. Today's alerts will appear tomorrow.
 
-- **Response (200 OK):**
+- **Response (200 OK) — `period=7d` (default):**
 
 ```json
 {
@@ -24,18 +25,18 @@ Retrieves high-level aggregated data for the Global Dashboard (system health, al
   "devices_online": "5 / 5",
   "alerts_chart": {
     "critical": [
-      { "label": "Mon", "value": 0 },
-      { "label": "Tue", "value": 2 }
+      { "label": "Apr 26", "value": 0 },
+      { "label": "Apr 27", "value": 2 }
     ],
     "warning": [
-      { "label": "Mon", "value": 3 },
-      { "label": "Tue", "value": 1 }
+      { "label": "Apr 26", "value": 3 },
+      { "label": "Apr 27", "value": 1 }
     ]
   },
-  "alerts_chart_max": 5.0,
+  "alerts_chart_max": 3.0,
   "energy_consumption": [
-    { "label": "Mon", "value": 12.4 },
-    { "label": "Tue", "value": 15.1 }
+    { "label": "Apr 26", "value": 12.4 },
+    { "label": "Apr 27", "value": 15.1 }
   ],
   "energy_chart_max": 15.1
 }
@@ -248,7 +249,7 @@ Retrieves historical data + analytics.
   - `period`: `24h`, `7d`, `1m`
   - `metric`: e.g. `temp`, `light_level`
 
-- **Response (200 OK):**
+- **Response (200 OK) — `period=24h`:**
 
 ```json
 {
@@ -262,6 +263,37 @@ Retrieves historical data + analytics.
   "chart_max": 29.0
 }
 ```
+
+- **Response (200 OK) — `period=7d`:**
+
+```json
+{
+  "device_id": "temp-sensor-01",
+  "period": "7d",
+  "source": "S3 processed data",
+  "data": [
+    { "label": "Apr 26", "value": 25.3 },
+    { "label": "Apr 27", "value": 26.1 }
+  ]
+}
+```
+
+- **Response (200 OK) — `period=1m`:**
+
+```json
+{
+  "device_id": "temp-sensor-01",
+  "period": "1m",
+  "source": "S3 processed data",
+  "data": [
+    { "label": "Week 1", "value": 24.8 },
+    { "label": "Week 2", "value": 25.3 },
+    { "label": "Week 3", "value": 26.0 },
+    { "label": "Week 4", "value": 25.7 }
+  ]
+}
+```
+
 - **Endpoint:** `GET /devices/light-sensor-01/telemetry?period=24h&metric=light_level`
 - **Response (200 OK):**
 ```json
@@ -291,7 +323,7 @@ Retrieves historical data + analytics.
 
 ### 2.2 Get Device Alerts
 
-Retrieves warnings & critical events for specific device.
+Retrieves warnings & critical events for a specific device.
 
 - **Endpoint:** `GET /devices/:id/alerts`
 
@@ -314,6 +346,8 @@ Retrieves warnings & critical events for specific device.
   ]
 }
 ```
+
+> **Note:** The payload above reflects a direct MQTT device alert. 
 
 ### 2.3 Get All Sorted Alerts for all devices (Notifications Screen)
 
@@ -349,6 +383,8 @@ Retrieves all recent sorted alerts across all devices for the last 7 days.
   ]
 }
 ```
+
+> **Note:** Door alerts triggered by the `door-watch` Lambda carry `"description"` only.
 
 ---
 
@@ -392,3 +428,66 @@ Authentication will be handled via AWS Cognito or a dedicated service.
 - **Sign In:** `POST /auth/login` → Returns JWT
 - **Sign Up:** `POST /auth/register`
 - **Verify:** `POST /auth/verify`
+
+---
+
+## 5. Push Notifications (FCM)
+
+Alerts are delivered to the Flutter app via Firebase Cloud Messaging. Each device has its own FCM topic equal to its `device_id`. The app subscribes to each topic on startup — no backend endpoint is involved.
+
+### 5.1 Gas Sensor Alert
+
+Fires immediately when a dangerous gas reading arrives via MQTT.
+
+- **FCM Topic:** `<device_id>` (e.g. `gas-sensor-01`)
+
+```json
+{
+  "title": "Gas Alert",
+  "body": "Gas level critical"
+}
+```
+
+Gas WARNING (spike detected, alarm not yet triggered):
+
+```json
+{
+  "title": "Gas Alert",
+  "body": "Gas spike detected"
+}
+```
+
+### 5.2 Door Timeout Alerts
+
+Fired by the `door-watch` Lambda (EventBridge, every 1 minute) while the door remains open. Stops automatically when the door closes.
+
+- **FCM Topic:** `<device_id>` (e.g. `door-actuator-01`)
+
+```json
+{ "title": "WARNING",  "body": "Warning: The door has been left open." }
+```
+```json
+{ "title": "CRITICAL", "body": "Critical: Door open for 15 minutes. Please secure it." }
+```
+```json
+{ "title": "CRITICAL", "body": "Critical: Door still open after 30 minutes." }
+```
+```json
+{ "title": "CRITICAL", "body": "Critical: Door open for 1 hour. Immediate action required." }
+```
+```json
+{ "title": "CRITICAL", "body": "Critical: Door open for 2 hours. Possible security breach." }
+```
+
+### 5.3 Direct Device Alert
+
+Fires when any device publishes directly to its MQTT alerts topic.
+
+- **FCM Topic:** `<device_id>`
+
+```json
+{
+  "title": "CRITICAL — door-sensor",
+  "body": "door-sensor alert triggered"
+}
+```

@@ -40,7 +40,7 @@ class ACCurtainActuator(BaseDevice):
 
     def _check_and_publish_alerts(self):
         if self.ac_power_watts > 1400:
-            self.publish_alert("AC_OVERCONSUMPTION", "MEDIUM",
+            self.publish_alert("AC_OVERCONSUMPTION", "WARNING",
                                {"power_watts": self.ac_power_watts, "threshold": 1400})
 
     def generate_telemetry(self) -> Dict[str, Any]:
@@ -57,7 +57,7 @@ class ACCurtainActuator(BaseDevice):
         })
         self._check_and_publish_alerts()
         return {
-            "sensor_type": "ac_curtain",
+            "sensor_type": "ac-actuator",
             "power_state": "OFF" if self.mode.value == "OFF" else "ON",
             "mode": self.mode.value,
             "target_temp": self.ac_temp_setpoint,

@@ -2,5 +2,15 @@ CLAUDE.md
 *.pdf
 .history/
 .vscode/
-.env 
-api.exe
+.env
+
+# Go build outputs
+backend/*.exe
+
+# Gradle cache (mobile)
+mobile/.gradle/
+
+# AWS IoT Certificates
+devices/certs/
+certs/
+devices/certs/

@@ -29,28 +29,52 @@ func NewService(credentialsFile string) (*Service, error) {
 
 	return &Service{
 		fcmClient: client,
-	}, nil
+		}, nil
 }
 
-//sending a message to a specific device topic
-func (s *Service) SendPushNotification(deviceID string, title string, body string) {
-	// For now, we will send to an FCM topic based on the device ID.
-	// The Flutter app will subscribe to this topic (e.g., "door-actuator-01") to receive alerts.
-	topic := deviceID
+//sending a message to a severity-specific topic(filter by WARNING or CRITICAL) to all of the user's registered devices
+func (s *Service) SendPushNotification(ctx context.Context, tokens []string, severity, title, body string) {
+	if s == nil {
+		slog.Warn("notification service unavailable, skipping sending it")
+		return
+	}
+	if len(tokens) == 0 {
+		slog.Info("no FCM tokens for user, skipping notification", "severity", severity)
+		return
+	}
 
-	message := &messaging.Message{
+	message := &messaging.MulticastMessage{
+		Tokens: tokens,
 		Notification: &messaging.Notification{
 			Title: title,
 			Body:  body,
 		},
-		Topic: topic,
+		Data: map[string]string{
+			"severity": severity,
+		},
+		Android: &messaging.AndroidConfig{
+			Notification: &messaging.AndroidNotification{
+				Sound: "alert_sound",
+			},
+		},
+		APNS: &messaging.APNSConfig{
+			Payload: &messaging.APNSPayload{
+				Aps: &messaging.Aps{
+					Sound: "alert_sound.wav",
+				},
+			},
+		},
 	}
 
-	response, err := s.fcmClient.Send(context.Background(), message)
+	response, err := s.fcmClient.SendEachForMulticast(ctx, message)
 	if err != nil {
-		slog.Error("Failed to send push notification", "error", err, "device_id", deviceID)
+		slog.Error("failed to send push notifications", "error", err, "severity", severity)
 		return
 	}
 
-	slog.Info("Successfully sent push notification", "response", response, "device_id", deviceID)
+	slog.Info("push notifications sent",
+		"success_count", response.SuccessCount,
+		"failure_count", response.FailureCount,
+		"severity", severity,
+	)
 }

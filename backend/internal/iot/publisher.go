@@ -1,9 +1,11 @@
+// backend/internal/iot/publisher.go
 package iot
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iotdataplane"
@@ -14,9 +16,15 @@ type Publisher struct {
 }
 
 func NewPublisher(cfg aws.Config) *Publisher {
-	return &Publisher{
-		Client: iotdataplane.NewFromConfig(cfg),
-	}
+	endpoint := os.Getenv("IOT_ENDPOINT")
+
+	client := iotdataplane.NewFromConfig(cfg, func(o *iotdataplane.Options) {
+		if endpoint != "" {
+			o.BaseEndpoint = aws.String("https://" + endpoint)
+		}
+	})
+
+	return &Publisher{Client: client}
 }
 
 func (publisher *Publisher) Publish(ctx context.Context, topic string, payload interface{}) error {
@@ -28,7 +36,7 @@ func (publisher *Publisher) Publish(ctx context.Context, topic string, payload i
 	_, err = publisher.Client.Publish(ctx, &iotdataplane.PublishInput{
 		Topic:   aws.String(topic),
 		Payload: payloadData,
-		Qos:     1, 
+		Qos:     1,
 	})
 
 	if err != nil {

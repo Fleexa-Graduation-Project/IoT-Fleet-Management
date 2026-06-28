@@ -2,17 +2,17 @@ package rules
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/Fleexa-Graduation-Project/Backend/models"
 )
 
-//1 min EventBridge Cron
+// 1 min EventBridge Cron
 func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
-	states, err := engine.stateStore.GetAllStates(ctx)
+	states, err := engine.stateStore.GetAllOpenDoors(ctx)
 	if err != nil {
 		slog.Error("failed to fetch states for door cron", "error", err)
 		return
@@ -22,79 +22,68 @@ func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
 	var wg sync.WaitGroup
 
 	for _, state := range states {
-		if state.Type == "door-sensor" || state.Type == "door-actuator" {
+		if state.Type != "door-sensor" && state.Type != "door-actuator" {
+			continue
+		}
 
-			isOpen := false
-			if openBool, ok := state.Payload["open"].(bool); 
-			ok {
-				isOpen = openBool
-			} else if openStr, ok := state.Payload["open"].(string); 
-			ok {
-				lower := strings.ToLower(openStr)
-				isOpen = (lower == "true" || lower == "open")
-			}
+		var startTimestamp int64
 
-			if isOpen {
-				var startTimestamp int64
+		if lastUnlockFloat, ok := state.Payload["last_unlock"].(float64); ok {
+			startTimestamp = int64(lastUnlockFloat)
+		} else if lastChangeFloat, ok := state.Payload["last_change"].(float64); ok {
+			startTimestamp = int64(lastChangeFloat)
+		}
 
-				if lastUnlockFloat, ok := state.Payload["last_unlock"].(float64); ok {
-					startTimestamp = int64(lastUnlockFloat)
-				} else if lastChangeFloat, ok := state.Payload["last_change"].(float64); ok {
-					startTimestamp = int64(lastChangeFloat)
-				}
+		if startTimestamp == 0 {
+			continue
+		}
 
-				if startTimestamp == 0 {
-					continue
-				}
+		minutesOpen := float64(now-startTimestamp) / 60.0
+		severity := ""
+		description := ""
 
-				minutesUnlocked := float64(now-startTimestamp) / 60.0
-				severity := ""
-				description := ""
+		// WARNING at minute 1, CRITICAL at 2, 4, 8, 16 — doubles each time, stops at 16
+		mins := int(minutesOpen)
+		isPowerOfTwo := mins > 0 && (mins&(mins-1)) == 0
 
-				// 7 mins WARNING notification
-				if minutesUnlocked >= 7.0 && minutesUnlocked < 8.0 {
-					severity = "WARNING"
-					description = "Warning: The door was left open."
-				}
+		if mins == 1 {
+			severity = "WARNING"
+			description = "Warning: The door has been unlocked for 1 minute."
+		} else if mins >= 2 && mins <= 16 && isPowerOfTwo {
+			severity = "CRITICAL"
+			description = fmt.Sprintf("Critical: Door unlocked for %d minutes. Please secure it.", mins)
+		}
 
-				// 15 mins CRITICAL notification
-				if minutesUnlocked >= 15.0 && minutesUnlocked < 16.0 {
-					severity = "CRITICAL"
-					description = "Critical: The door has been open for 15 minutes. Please secure it."
-				}
-
-				if severity != "" {
-					wg.Add(1)
-
-					go func(deviceID, deviceType, sev, desc string) {
-						defer wg.Done()
-						engine.triggerDoorAlert(ctx, deviceID, deviceType, sev, desc)
-					}(state.DeviceID, state.Type, severity, description)
-				}
-			}
+		if severity != "" {
+			wg.Add(1)
+			go func(state models.DeviceState, sev, desc string) {
+				defer wg.Done()
+				engine.triggerDoorAlert(ctx, state, sev, desc)
+			}(state, severity, description)
 		}
 	}
 	wg.Wait()
 }
 
-func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, deviceID string, deviceType string, severity string, description string) {
-
+func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, state models.DeviceState, severity, description string) {
 	err := engine.alertStore.SaveAlert(ctx, models.Alert{
-		DeviceID:  deviceID,
-		Type:      deviceType, 
+		UserID:    state.UserID,
+		DeviceID:  state.DeviceID,
+		Type:      state.Type,
 		Severity:  severity,
-		Timestamp: time.Now().Unix(),
+		Timestamp: models.EpochTime(time.Now().Unix()),
 		Payload: map[string]interface{}{
 			"description": description,
 		},
 	})
 
-	if err == nil {
-		slog.Warn("Door Security Event Logged", "device_id", deviceID, "severity", severity)
-		
-		// send notification to app
-		engine.notifier.SendPushNotification(deviceID, severity, description)
-	} else {
-		slog.Error("failed to save door alert to db", "error", err)
+	if err != nil {
+		slog.Error("failed to save door alert to db", "error", err, "user_id", state.UserID, "device_id", state.DeviceID)
+		return
 	}
+
+	slog.Warn("door security event logged", "user_id", state.UserID, "device_id", state.DeviceID, "severity", severity)
+
+	// send notification to app
+	engine.Notify(ctx, state.UserID, severity, "Door Alert", description)
 }

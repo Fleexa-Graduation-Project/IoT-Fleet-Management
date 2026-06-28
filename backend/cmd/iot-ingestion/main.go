@@ -10,11 +10,12 @@ import (
 	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/ingestion"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/notifications"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/telemetry"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/users"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
-	"github.com/Fleexa-Graduation-Project/Backend/internal/notifications"
 )
 
 var (
@@ -53,21 +54,26 @@ func init() {
 		panic(fmt.Errorf("failed to init device state store: %w", err))
 	}
 
-	log.Info("iot ingestion -> Cold Start Completed. Stores Ready.")
-
 	firebaseKeyPath := os.Getenv("FIREBASE_CREDENTIALS")
 	if firebaseKeyPath == "" {
 		firebaseKeyPath = "./firebase-adminsdk.json" // Make sure this file is uploaded with your Lambda ZIP
 	}
-
+	
 	notifier, err = notifications.NewService(firebaseKeyPath)
 	if err != nil {
 		log.Error("failed to init notification service (Firebase)", "error", err)
 	}
 
-	alertEngine = rules.NewAlertEngine(alertStore, stateStore, notifier)
+	userStore, userErr := users.NewUserStore()
+	if userErr != nil {
+		log.Warn("user store unavailable, push notifications will be skipped", "error", userErr)
+		userStore = nil
+	}
+
+	alertEngine = rules.NewAlertEngine(alertStore, stateStore, notifier, userStore)
 
 	log.Info("iot ingestion -> Cold Start Completed. Stores Ready.")
+
 }
 
 func main() {

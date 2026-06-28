@@ -35,11 +35,13 @@ class GasSensor(BaseDevice):
 
     def _calculate_status(self) -> str:
         if self.co_ppm > 35 or self.lpg_ppm > 5000:
+            self.alarm_on = True
             return "DANGEROUS"
         elif self.gas_level > 2000 or self.co_ppm > 9:
             return "POOR"
         elif self.gas_level > 1000:
             return "MODERATE"
+        self.alarm_on = False
         return "GOOD"
 
     def _check_and_publish_alerts(self):
@@ -47,13 +49,13 @@ class GasSensor(BaseDevice):
             self.publish_alert("CO_DANGEROUS_LEVEL", "CRITICAL",
                                {"co_ppm": self.co_ppm, "threshold": 35})
         elif self.co_ppm > 9:
-            self.publish_alert("CO_HIGH_LEVEL", "MEDIUM",
+            self.publish_alert("CO_HIGH_LEVEL", "WARNING",
                                {"co_ppm": self.co_ppm, "threshold": 9})
         if self.lpg_ppm > 5000:
             self.publish_alert("LPG_LEAK_CRITICAL", "CRITICAL",
                                {"lpg_ppm": self.lpg_ppm, "threshold": 5000})
         if self.gas_level > 2000:
-            self.publish_alert("HIGH_CO2_LEVEL", "MEDIUM",
+            self.publish_alert("HIGH_CO2_LEVEL", "WARNING",
                                {"gas_level": self.gas_level, "threshold": 2000})
 
     def generate_telemetry(self) -> Dict[str, Any]:
@@ -72,6 +74,7 @@ class GasSensor(BaseDevice):
             "co_ppm": self.co_ppm,
             "lpg_ppm": self.lpg_ppm,
             "status": status,
+            "alarm_on": self.alarm_on,
         }
 
     def handle_command(self, command: Dict[str, Any]):

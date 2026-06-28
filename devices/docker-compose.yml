@@ -1,29 +1,156 @@
-version: "3.9"
+# devices/docker-compose.yml
+x-device-common: &device-common
+  build:
+    context: ..
+    dockerfile: devices/Dockerfile
+  restart: always
+  stop_grace_period: 30s
+  volumes:
+    - ./certs:/app/certs:ro
+    - ./logs:/app/logs
+    - ${HOME}/.aws:/root/.aws:ro
+  networks:
+    - iot-network
+  environment:
+    AWS_REGION: ${AWS_REGION:-us-east-1}
+    AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
 
 services:
-  iot-simulator:
+
+  temperature-sensor:
+    <<: *device-common
+    container_name: fleexa-temperature-sensor
+    environment:
+      # STARTUP_DELAY: deterministic base stagger (seconds).
+      # Each device is spaced 5 s apart so at most 1 device connects
+      # per second — well within the AWS IoT Core connect-rate limit.
+      # orchestrator.py adds 0–2 s of random jitter on top of this value
+      # to prevent thundering-herd bursts after broker-forced reconnects.
+      STARTUP_DELAY: "0"
+      DEVICE_ID: temp-sensor-01
+      DEVICE_TYPE: temperature_sensor
+      DEVICE_NAME: "Temperature Sensor"
+      DEVICE_LOCATION: "Server Room"
+      USER_ID: ${USER_ID}
+      USER_IDS: ${USER_IDS:-}
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "30"
+
+  gas-sensor:
+    <<: *device-common
+    container_name: fleexa-gas-sensor
+    environment:
+      STARTUP_DELAY: "5"
+      DEVICE_ID: gas-sensor-01
+      DEVICE_TYPE: gas_sensor
+      DEVICE_NAME: "Gas Sensor"
+      DEVICE_LOCATION: "Warehouse"
+      USER_ID: ${USER_ID}
+      USER_IDS: ${USER_IDS:-}
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "15"
+
+  door-sensor:
+    <<: *device-common
+    container_name: fleexa-door-sensor
+    environment:
+      STARTUP_DELAY: "10"
+      DEVICE_ID: door-sensor-01
+      DEVICE_TYPE: door_sensor
+      DEVICE_NAME: "Door Sensor"
+      DEVICE_LOCATION: "Main Entrance"
+      USER_ID: ${USER_ID}
+      USER_IDS: ${USER_IDS:-}
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "10"
+
+  light-sensor:
+    <<: *device-common
+    container_name: fleexa-light-sensor
+    environment:
+      STARTUP_DELAY: "15"
+      DEVICE_ID: light-sensor-01
+      DEVICE_TYPE: light_sensor
+      DEVICE_NAME: "Light Sensor"
+      DEVICE_LOCATION: "Office"
+      USER_ID: ${USER_ID}
+      USER_IDS: ${USER_IDS:-}
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "60"
+
+  ac-curtain:
+    <<: *device-common
+    container_name: fleexa-ac-curtain
+    environment:
+      STARTUP_DELAY: "20"
+      DEVICE_ID: ac-actuator-01
+      DEVICE_TYPE: ac-actuator
+      DEVICE_NAME: "AC & Curtain Actuator"
+      DEVICE_LOCATION: "Living Room"
+      USER_ID: ${USER_ID}
+      USER_IDS: ${USER_IDS:-}
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "30"
+
+  door-actuator:
+    <<: *device-common
+    container_name: fleexa-door-actuator
+    environment:
+      STARTUP_DELAY: "25"
+      DEVICE_ID: door-actuator-01
+      DEVICE_TYPE: door_locker
+      DEVICE_NAME: "Door Actuator"
+      DEVICE_LOCATION: "Main Entrance"
+      USER_ID: ${USER_ID}
+      USER_IDS: ${USER_IDS:-}
+      MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
+      MQTT_PORT: "8883"
+      PUBLISH_INTERVAL: "30"
+
+  # ── Device Simulator ─────────────────────────────────────────────────────
+  # Invokes processing_main_lambda directly via boto3 every 10 seconds.
+  # Runs automatically alongside all real device containers.
+  # AWS credentials are picked up from the host in this priority order:
+  #   1. AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN env vars
+  #   2. ~/.aws credentials bind-mount (default below)
+  simulator:
     build:
       context: ..
-      dockerfile: devices/Dockerfile
-    container_name: fleexa-iot-simulator
+      dockerfile: backend/scripts/Dockerfile.simulator
+    container_name: fleexa-simulator
+    restart: always
+    stop_grace_period: 10s
     environment:
-      - AWS_REGION=us-east-1
-      - MQTT_BROKER=${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
-      - MQTT_PORT=8883
-      - USE_LOCALSTACK=false
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      SIMULATOR_USER_ID: ${USER_ID:-34c81498-30c1-709b-3fe2-61f8bcce903a}
+      SIMULATOR_INTERVAL: ${SIMULATOR_INTERVAL:-10}
     volumes:
-      - ../certs:/app/certs:ro         # read-only cert mount
-      - ../logs:/app/logs
+      - ${HOME}/.aws:/root/.aws:ro
     networks:
       - iot-network
-    restart: unless-stopped
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
 
-  # ── LocalStack (only for CI/dev) ──────────────────────────────────────────
   localstack:
     image: localstack/localstack:latest
     container_name: localstack-iot
@@ -31,9 +158,7 @@ services:
       - "4566:4566"
     environment:
       - SERVICES=iot,dynamodb,lambda,apigateway,s3
-      - DEBUG=1
       - DEFAULT_REGION=us-east-1
-      - AWS_DEFAULT_REGION=us-east-1
     volumes:
       - localstack_data:/tmp/localstack
       - /var/run/docker.sock:/var/run/docker.sock

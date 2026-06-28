@@ -17,42 +17,32 @@ class DoorSensor(BaseDevice):
         self.state = {"open": False, "duration_open_seconds": 0,
                       "last_change": None, "intrusion": False}
 
-    def _check_and_publish_alerts(self):
-        if self.open_duration >= 300:
-            self.publish_alert("DOOR_OPEN_TOO_LONG", "MEDIUM",
-                               {"duration_seconds": self.open_duration, "threshold": 300,
-                                "location": self.config.location})
-        if self.intrusion_detected:
-            self.publish_alert("INTRUSION_DETECTED", "CRITICAL",
-                               {"location": self.config.location})
-
     def generate_telemetry(self) -> Dict[str, Any]:
-        # 5% chance of door state change per reading
-        if random.random() < 0.05:
-            self.is_open = not self.is_open
-            self.last_change = int(time.time())
-            if self.is_open:
-                self.open_duration = 0
+        if not hasattr(self, 'battery_level'):
+            self.battery_level = 100.0
+            
+        # Drain battery slowly instead of randomly flipping door state
+        self.battery_level = max(0.0, self.battery_level - (random.random() * 0.1))
+
         if self.is_open:
             self.open_duration += self.config.publish_interval
         else:
             self.open_duration = 0
-        # 0.2% chance of intrusion flag (simulates unexpected open at night)
-        self.intrusion_detected = random.random() < 0.002 and self.is_open
+
         status = "OPEN" if self.is_open else "CLOSED"
         self.state.update({
             "open": self.is_open,
             "duration_open_seconds": self.open_duration,
             "last_change": self.last_change,
-            "intrusion": self.intrusion_detected,
+            "battery_level": round(self.battery_level, 1)
         })
-        self._check_and_publish_alerts()
         return {
             "sensor_type": "door_sensor",
             "open": self.is_open,
             "duration_open_seconds": self.open_duration,
             "intrusion_detected": self.intrusion_detected,
             "last_change": self.last_change,
+            "battery_level": round(self.battery_level, 1),
         }
 
     def handle_command(self, command: Dict[str, Any]):

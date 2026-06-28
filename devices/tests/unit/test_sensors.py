@@ -13,6 +13,8 @@ from devices.simulators.base_device import DeviceConfig
 def make_config(device_id, device_type):
     return DeviceConfig(
         device_id=device_id,
+        user_id="test-user-123",
+        user_ids=["test-user-123"],
         device_name=device_id,
         device_type=device_type,
         location="Test Room",
