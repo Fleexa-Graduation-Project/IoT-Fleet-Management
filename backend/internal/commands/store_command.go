@@ -38,7 +38,7 @@ func NewCommandStore() (*CommandStore, error) {
 
 func (store *CommandStore) SaveCommand(ctx context.Context, cmd models.Command) error {
 	if cmd.ExpiresAt == 0 {
-		cmd.ExpiresAt = models.EpochTime(time.Now().Add(30 * 24 * time.Hour).Unix())
+		cmd.ExpiresAt = models.EpochTime(time.Now().Add(7 * 24 * time.Hour).Unix())
 	}
 
 	if cmd.Timestamp == 0 {

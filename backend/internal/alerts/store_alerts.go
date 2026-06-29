@@ -46,7 +46,7 @@ func (store *AlertStore) SaveAlert(ctx context.Context, alert models.Alert) erro
 		alert.GenerateID()
 	}
 	if alert.ExpiresAt == 0 {
-		alert.ExpiresAt = models.EpochTime(time.Now().Add(30 * 24 * time.Hour).Unix())
+		alert.ExpiresAt = models.EpochTime(time.Now().Add(7 * 24 * time.Hour).Unix())
 	}
 
 	item, err := attributevalue.MarshalMap(alert)

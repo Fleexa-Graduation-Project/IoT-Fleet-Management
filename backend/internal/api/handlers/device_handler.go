@@ -617,7 +617,7 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		UserID:     userID,
 		DeviceID:   deviceID,
 		Timestamp:  models.EpochTime(now),
-		ExpiresAt:  models.EpochTime(now + (30 * 24 * 60 * 60)), // TTL: 30 days
+		ExpiresAt:  models.EpochTime(now + (7 * 24 * 60 * 60)), // TTL: 7 days
 		Action:     req.Action,
 		Parameters: req.Parameters,
 	}
