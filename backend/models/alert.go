@@ -10,7 +10,7 @@ type Alert struct {
 	Type      string                 `json:"type"       dynamodbav:"type"`
 	Severity  string                 `json:"severity"   dynamodbav:"severity"`
 	Payload   map[string]interface{} `json:"payload"    dynamodbav:"payload"`
-	ExpiresAt EpochTime              `json:"expires_at" dynamodbav:"expires_at"`
+	ExpiresAt EpochTime              `json:"expires_at" dynamodbav:"ttl"`
 	IsRead    bool                   `json:"is_read"    dynamodbav:"is_read"`
 }
 
