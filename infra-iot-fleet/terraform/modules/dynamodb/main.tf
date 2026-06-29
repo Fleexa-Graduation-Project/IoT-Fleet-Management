@@ -108,7 +108,7 @@ resource "aws_dynamodb_table" "commands" {
   }
 
   ttl {
-    attribute_name = "ttl"
+    attribute_name = "expires_at"
     enabled        = true
   }
 }
