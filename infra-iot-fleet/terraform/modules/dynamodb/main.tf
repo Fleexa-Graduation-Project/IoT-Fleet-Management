@@ -106,7 +106,7 @@ resource "aws_dynamodb_table" "commands" {
     name = "timestamp"
     type = "N"
   }
-  
+
   ttl {
     attribute_name = "expires_at"
     enabled        = true
