@@ -13,4 +13,12 @@ mobile/.gradle/
 # AWS IoT Certificates
 devices/certs/
 certs/
-devices/certs/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Terraform states
+*.tfstate
+*.tfstate.backup
+.terraform/
