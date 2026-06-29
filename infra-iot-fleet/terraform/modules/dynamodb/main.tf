@@ -16,7 +16,7 @@ resource "aws_dynamodb_table" "telemetry" {
   }
 
   ttl {
-    attribute_name = "expires_at"
+    attribute_name = "ttl"
     enabled        = true
   }
 }
@@ -88,7 +88,7 @@ resource "aws_dynamodb_table" "alerts" {
   }
 
   ttl {
-    attribute_name = "expires_at"
+    attribute_name = "ttl"
     enabled        = true
   }
 }
@@ -108,7 +108,7 @@ resource "aws_dynamodb_table" "commands" {
   }
 
   ttl {
-    attribute_name = "expires_at"
+    attribute_name = "ttl"
     enabled        = true
   }
 }
