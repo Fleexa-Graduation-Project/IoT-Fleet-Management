@@ -148,14 +148,13 @@ func (store *AlertStore) MarkAlertAsRead(ctx context.Context, alertID string) er
 	if lastHash < 0 {
 		return fmt.Errorf("MarkAlertAsRead: invalid alert_id format: %s", alertID)
 	}
-	userDeviceID := alertID[:lastHash]
 	tsStr := alertID[lastHash+1:]
 
 	_, err := store.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(store.TableName),
 		Key: map[string]types.AttributeValue{
-			"user_device_id": &types.AttributeValueMemberS{Value: userDeviceID},
-			"timestamp":      &types.AttributeValueMemberN{Value: tsStr},
+			"alert_id":  &types.AttributeValueMemberS{Value: alertID},
+			"timestamp": &types.AttributeValueMemberN{Value: tsStr},
 		},
 		UpdateExpression: aws.String("SET is_read = :true"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
