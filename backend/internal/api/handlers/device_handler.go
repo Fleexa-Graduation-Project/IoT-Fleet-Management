@@ -433,16 +433,18 @@ func (handler *DeviceHandler) GetDeviceAlerts(context *gin.Context) {
 	context.JSON(http.StatusOK, gin.H{"data": alertList})
 }
 
-// PUT /api/v1/alerts/:id/read
+// PUT /api/v1/alerts/read
 func (handler *DeviceHandler) MarkAlertRead(c *gin.Context) {
-	alertID := c.Param("id")
-	if alertID == "" {
+	var req struct {
+		AlertID string `json:"alert_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.AlertID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "alert_id is required"})
 		return
 	}
 
-	if err := handler.AlertStore.MarkAlertAsRead(c.Request.Context(), alertID); err != nil {
-		slog.Error("failed to mark alert as read", "alert_id", alertID, "error", err)
+	if err := handler.AlertStore.MarkAlertAsRead(c.Request.Context(), req.AlertID); err != nil {
+		slog.Error("failed to mark alert as read", "alert_id", req.AlertID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark alert as read"})
 		return
 	}

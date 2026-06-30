@@ -120,7 +120,7 @@ func main() {
 		device.GET("/system/overview", deviceHandler.GetSystemOverview)
 		device.POST("/devices/:id/commands", deviceHandler.SendCommand)
 		device.PUT("/devices/:id/preferences", deviceHandler.SetDevicePreference)
-		device.PUT("/alerts/:id/read", deviceHandler.MarkAlertRead)
+		device.PUT("/alerts/read", deviceHandler.MarkAlertRead)
 
 		authRoutes := v1.Group("/auth")
 		{
