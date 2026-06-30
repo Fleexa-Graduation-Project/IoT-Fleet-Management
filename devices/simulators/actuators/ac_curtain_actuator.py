@@ -12,6 +12,7 @@ class ACMode(Enum):
     HEAT    = "HEAT"
     FAN     = "FAN"
     AUTO    = "AUTO"
+    DRY     = "DRY"
 
 class ACCurtainActuator(BaseDevice):
     """Combined AC Unit + Motorized Curtain Actuator"""
@@ -26,6 +27,8 @@ class ACCurtainActuator(BaseDevice):
         # Curtain state
         self.curtain_position = 0      # 0=fully closed, 100=fully open
         self.curtain_moving   = False
+        self.timer_end_timestamp = 0
+        self.last_turned_on = 0
         self.state = {
             "mode": self.mode.value,
             "target_temp": self.ac_temp_setpoint,
@@ -36,6 +39,8 @@ class ACCurtainActuator(BaseDevice):
         power_map = {ACMode.OFF: 0, ACMode.FAN: 50,
                      ACMode.COOL: 1200, ACMode.HEAT: 1000, ACMode.AUTO: 1100}
         base = power_map.get(self.mode, 0)
+        if base == 0:
+            return 0.0
         return round(base + random.uniform(-20, 20), 1)
 
     def _check_and_publish_alerts(self):
@@ -49,20 +54,30 @@ class ACCurtainActuator(BaseDevice):
             "power_state": "OFF" if self.mode.value == "OFF" else "ON",
             "mode": self.mode.value,
             "target_temp": self.ac_temp_setpoint,
-            "last_turned_on": 0,
-            "timer_end_timestamp": 0,
+            "last_turned_on": self.last_turned_on,
+            "timer_end_timestamp": self.timer_end_timestamp,
             "ac_fan_speed": self.ac_fan_speed,
             "curtain_position": self.curtain_position,
             "ac_power_watts": self.ac_power_watts,
         })
         self._check_and_publish_alerts()
+        mode_str = self.mode.value
+        if mode_str == "HEAT":
+            mode_str = "HEATING"
+        elif mode_str == "COOL":
+            mode_str = "COOLING"
+        elif mode_str == "DRY":
+            mode_str = "DRY"
+        elif mode_str == "FAN":
+            mode_str = "FANONLY"
+
         return {
             "sensor_type": "ac-actuator",
             "power_state": "OFF" if self.mode.value == "OFF" else "ON",
-            "mode": self.mode.value,
+            "mode": mode_str,
             "target_temp": self.ac_temp_setpoint,
-            "last_turned_on": 0,
-            "timer_end_timestamp": 0,
+            "last_turned_on": self.last_turned_on,
+            "timer_end_timestamp": self.timer_end_timestamp,
             "ac_fan_speed": self.ac_fan_speed,
             "ac_power_watts": self.ac_power_watts,
             "curtain_position_percent": self.curtain_position,
@@ -81,6 +96,8 @@ class ACCurtainActuator(BaseDevice):
             power = parameters.get("power", "").upper()
             if power == "OFF":
                 self.mode = ACMode.OFF
+                self.timer_end_timestamp = 0
+                self.last_turned_on = 0
             else:
                 mode = parameters.get("mode", "").upper()
                 if mode in ACMode.__members__:
@@ -88,14 +105,56 @@ class ACCurtainActuator(BaseDevice):
                 temp = parameters.get("target_temp")
                 if temp and 16 <= temp <= 30:
                     self.ac_temp_setpoint = temp
+                    
+        elif action == "SET_POWER":
+            power = parameters.get("power_state", "").upper()
+            if power == "OFF":
+                self.mode = ACMode.OFF
+                self.timer_end_timestamp = 0
+                self.last_turned_on = 0
+            elif power == "ON":
+                if self.mode == ACMode.OFF:
+                    self.mode = ACMode.AUTO
+                import time
+                self.last_turned_on = int(time.time())
 
-        elif action == "SET_AC_MODE":
+        elif action == "SET_TIMER":
+            secs = parameters.get("duration_seconds")
+            if secs and secs > 0:
+                # Prefer AWS-provided timestamps to avoid local Docker clock skew
+                end_ts = parameters.get("timer_end_timestamp")
+                last_on = parameters.get("last_turned_on")
+                if end_ts and last_on:
+                    self.timer_end_timestamp = end_ts
+                    self.last_turned_on = last_on
+                else:
+                    import time
+                    now = int(time.time())
+                    self.timer_end_timestamp = now + int(secs)
+                    self.last_turned_on = now
+                
+                if self.mode == ACMode.OFF:
+                    self.mode = ACMode.AUTO
+
+        elif action in ("SET_AC_MODE", "SET_MODE"):
             mode = parameters.get("mode", "").upper()
+            # Map Flutter app's verbose modes to enum modes
+            if mode == "HEATING":
+                mode = "HEAT"
+            elif mode == "COOLING":
+                mode = "COOL"
+            elif mode in ("DRYING", "DRY"):
+                mode = "DRY"
+            elif mode in ("FAN ONLY", "FAN_ONLY", "FAN", "FANONLY"):
+                mode = "FAN"
+
             if mode in ACMode.__members__:
                 self.mode = ACMode[mode]
 
-        elif action == "SET_AC_TEMP":
+        elif action in ("SET_AC_TEMP", "SET_TEMPERATURE"):
             temp = parameters.get("temperature")
+            if temp is None:
+                temp = parameters.get("target_temp")
             if temp and 16 <= temp <= 30:
                 self.ac_temp_setpoint = temp
 

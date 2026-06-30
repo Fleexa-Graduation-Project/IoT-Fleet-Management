@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -544,8 +545,8 @@ func buildACStateUpdate(action string, params map[string]interface{}, now int64)
 	fields := map[string]interface{}{}
 	opState := ""
 
-	switch action {
-	case "set_power":
+	switch strings.ToLower(action) {
+	case "set_power", "set_state":
 		if ps, ok := params["power_state"].(string); ok {
 			fields["power_state"] = ps
 			opState = ps
@@ -554,13 +555,16 @@ func buildACStateUpdate(action string, params map[string]interface{}, now int64)
 			}
 			if ps == "OFF" {
 				fields["timer_end_timestamp"] = int64(0)
+				fields["last_turned_on"] = int64(0)
 			}
 		}
-	case "set_temperature":
+	case "set_temperature", "set_ac_temp":
 		if temp, ok := params["target_temp"].(float64); ok {
 			fields["target_temp"] = temp
+		} else if temp, ok := params["temperature"].(float64); ok {
+			fields["target_temp"] = temp
 		}
-	case "set_mode":
+	case "set_mode", "set_ac_mode":
 		if mode, ok := params["mode"].(string); ok {
 			fields["mode"] = mode
 		}
@@ -587,6 +591,26 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		return
 	}
 
+	now := time.Now().Unix()
+	
+	actionLower := strings.ToLower(req.Action)
+	if actionLower == "set_timer" {
+		if req.Parameters == nil {
+			req.Parameters = make(map[string]interface{})
+		}
+		if secs, ok := req.Parameters["duration_seconds"].(float64); ok && secs > 0 {
+			req.Parameters["timer_end_timestamp"] = now + int64(secs)
+			req.Parameters["last_turned_on"] = now
+		}
+	} else if actionLower == "set_power" || actionLower == "set_state" {
+		if req.Parameters == nil {
+			req.Parameters = make(map[string]interface{})
+		}
+		if ps, ok := req.Parameters["power_state"].(string); ok && ps == "ON" {
+			req.Parameters["last_turned_on"] = now
+		}
+	}
+
 	requestID := fmt.Sprintf("cmd-%d", time.Now().UnixNano())
 	mqttPayload := map[string]interface{}{
 		"request_id": requestID,
@@ -601,8 +625,6 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to communicate with device"})
 		return
 	}
-
-	now := time.Now().Unix()
 
 	acFields, opState := buildACStateUpdate(req.Action, req.Parameters, now)
 	if len(acFields) > 0 {

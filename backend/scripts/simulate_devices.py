@@ -35,7 +35,6 @@ DEVICES = [
     {"device_id": "temp-sensor-01",   "type": "temp-sensor"},
     {"device_id": "light-sensor-01",  "type": "light-sensor"},
     {"device_id": "gas-sensor-01",    "type": "gas-sensor"},
-    {"device_id": "ac-actuator-01",   "type": "ac-actuator"},
 ]
 
 # ─── AWS client ───────────────────────────────────────────────────────────────

@@ -78,6 +78,7 @@ func handler(ctx context.Context, _ map[string]interface{}) error {
 		clearFields := map[string]interface{}{
 			"power_state":         "OFF",
 			"timer_end_timestamp": int64(0),
+			"last_turned_on":      int64(0),
 		}
 		if updateErr := stateStore.UpdateACFields(ctx, state.UserID, state.DeviceID, clearFields, "OFF"); updateErr != nil {
 			log.Warn("failed to clear AC timer state after shutoff",

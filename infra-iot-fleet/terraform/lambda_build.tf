@@ -30,7 +30,9 @@ data "aws_iam_policy_document" "iot_ingestion_policy" {
       "dynamodb:GetItem",
       "dynamodb:UpdateItem",
       "dynamodb:Query",
-      "dynamodb:Scan"
+      "dynamodb:Scan",
+      "iot:Publish",
+      "iot:Connect"
     ]
     resources = ["*"]
   }
@@ -93,4 +95,28 @@ data "archive_file" "door_watch_lambda_zip" {
   output_path = "${path.module}/../../backend/dist/door-watch/door-watch.zip"
 
   depends_on = [null_resource.build_door_watch_lambda]
+}
+
+resource "null_resource" "build_ac_timer_watch_lambda" {
+  triggers = {
+    always_run = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      mkdir -p ${path.module}/../../backend/dist/ac-timer-watch
+      cd ${path.module}/../../backend
+      GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -tags lambda.norpc -o dist/ac-timer-watch/bootstrap cmd/ac-timer-watch/main.go
+      chmod +x dist/ac-timer-watch/bootstrap
+    EOT
+  }
+}
+
+data "archive_file" "ac_timer_watch_lambda_zip" {
+  type        = "zip"
+  source_file = "${path.module}/../../backend/dist/ac-timer-watch/bootstrap"
+  output_path = "${path.module}/../../backend/dist/ac-timer-watch/ac-timer-watch.zip"
+
+  depends_on = [null_resource.build_ac_timer_watch_lambda]
 }

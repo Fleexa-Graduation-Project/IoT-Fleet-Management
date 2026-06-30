@@ -42,6 +42,11 @@ def build_config_from_env():
     else:
         user_id = os.environ.get("USER_ID", "")
 
+    if not user_ids and not user_id:
+        import sys
+        print("❌ CRITICAL: No users fetched from DynamoDB and no fallback USER_IDS/USER_ID provided. Cannot start simulator.")
+        sys.exit(1)
+
     return DeviceConfig(
         device_id        = device_id,
         user_id          = user_id,
