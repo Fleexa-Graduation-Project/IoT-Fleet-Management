@@ -88,7 +88,7 @@ class TestACCurtainActuator:
             "parameters": {"mode": "COOL"}
         })
         telemetry = actuator.generate_telemetry()
-        assert telemetry["mode"] == "COOL"
+        assert telemetry["mode"] == "COOLING"
 
     def test_curtain_open_command(self):
         actuator = ACCurtainActuator(make_config("ac-curtain-01", "actuator"))
