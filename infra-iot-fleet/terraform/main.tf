@@ -67,7 +67,7 @@ module "door_watch_lambda" {
     COGNITO_USER_POOL_ID = module.cognito.user_pool_id
     COGNITO_CLIENT_ID    = module.cognito.client_id
     IOT_ENDPOINT         = var.iot_endpoint
-    FIREBASE_CREDENTIALS = "./firebase-adminsdk.json"
+    FIREBASE_CREDENTIALS = var.firebase_credentials_json
   }
 
   depends_on = [data.archive_file.door_watch_lambda_zip]
@@ -116,7 +116,7 @@ module "ac_timer_watch_lambda" {
     COGNITO_USER_POOL_ID = module.cognito.user_pool_id
     COGNITO_CLIENT_ID    = module.cognito.client_id
     IOT_ENDPOINT         = var.iot_endpoint
-    FIREBASE_CREDENTIALS = "./firebase-adminsdk.json"
+    FIREBASE_CREDENTIALS = var.firebase_credentials_json
   }
 
   depends_on = [data.archive_file.ac_timer_watch_lambda_zip]

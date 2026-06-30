@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
@@ -15,8 +16,14 @@ type Service struct {
 	fcmClient *messaging.Client
 }
 
-func NewService(credentialsFile string) (*Service, error) {
-	opt := option.WithCredentialsFile(credentialsFile)
+
+func NewService(credentialsSource string) (*Service, error) {
+	var opt option.ClientOption
+	if strings.HasPrefix(strings.TrimSpace(credentialsSource), "{") {
+		opt = option.WithCredentialsJSON([]byte(credentialsSource))
+	} else {
+		opt = option.WithCredentialsFile(credentialsSource)
+	}
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing firebase app: %w", err)
@@ -77,4 +84,14 @@ func (s *Service) SendPushNotification(ctx context.Context, tokens []string, sev
 		"failure_count", response.FailureCount,
 		"severity", severity,
 	)
+
+	for i, r := range response.Responses {
+		if !r.Success {
+			slog.Error("fcm token delivery failed",
+				"token_index", i,
+				"token", tokens[i],
+				"error", r.Error,
+			)
+		}
+	}
 }

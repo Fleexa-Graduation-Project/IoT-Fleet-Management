@@ -61,7 +61,7 @@ module "iot_ingestion_lambda" {
     USERS_TABLE          = "iot-fleet_Users"
     COGNITO_USER_POOL_ID = module.cognito.user_pool_id
     COGNITO_CLIENT_ID    = module.cognito.client_id
-    FIREBASE_CREDENTIALS = "./firebase-adminsdk.json"
+    FIREBASE_CREDENTIALS = var.firebase_credentials_json
   }
 
   depends_on = [data.archive_file.lambda_zip]

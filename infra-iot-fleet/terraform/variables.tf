@@ -72,3 +72,9 @@ variable "fleet_lon" {
   type        = string
   default     = ""
 }
+
+variable "firebase_credentials_json" {
+  description = "Firebase service account JSON content — paste the full JSON from Firebase Console"
+  type        = string
+  sensitive   = true
+}
