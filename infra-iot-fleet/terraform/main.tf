@@ -20,6 +20,8 @@ module "api_gateway" {
   bucket_name          = module.s3.bucket_id
   iot_endpoint         = var.iot_endpoint
   users_table_name     = var.users_table_name
+  fleet_lat            = var.fleet_lat
+  fleet_lon            = var.fleet_lon
 }
 
 module "s3" {

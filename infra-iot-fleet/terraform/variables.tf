@@ -60,3 +60,15 @@ variable "users_table_name" {
   type        = string
   default     = "iot-fleet_Users"
 }
+
+variable "fleet_lat" {
+  description = "Fleet location latitude for weather API"
+  type        = string
+  default     = ""
+}
+
+variable "fleet_lon" {
+  description = "Fleet location longitude for weather API"
+  type        = string
+  default     = ""
+}

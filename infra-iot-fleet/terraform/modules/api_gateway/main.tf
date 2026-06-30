@@ -59,6 +59,8 @@ resource "aws_lambda_function" "api_lambda" {
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
       COGNITO_CLIENT_ID    = var.cognito_client_id
       BUCKET_NAME          = var.bucket_name
+      FLEET_LAT            = var.fleet_lat
+      FLEET_LON            = var.fleet_lon
     }
   }
 
