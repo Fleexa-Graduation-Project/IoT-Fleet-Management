@@ -123,11 +123,11 @@ All routes are versioned under `/api/v1`. Protected routes require a Cognito acc
 | Group | Endpoint | Auth |
 | :--- | :--- | :---: |
 | **Auth** | `POST /auth/signup` `POST /auth/signin` `POST /auth/refresh` `POST /auth/forgot-password` `POST /auth/reset-password` | Public |
-| **Auth** | `POST /auth/change-password` `GET /auth/profile` `DELETE /auth/account` | 🔒 |
-| **Devices** | `GET /devices` `GET /devices/:id` `GET /devices/:id/telemetry` `GET /devices/:id/alerts` `POST /devices/:id/commands` `PUT /devices/:id/preferences` | 🔒 |
-| **Alerts** | `GET /alerts` `PUT /alerts/read` | 🔒 |
-| **Users** | `GET /users/preferences` `PUT /users/preferences` | 🔒 |
-| **System** | `GET /system/overview` | 🔒 |
+| **Auth** | `POST /auth/change-password` `GET /auth/profile` `DELETE /auth/account` | Private |
+| **Devices** | `GET /devices` `GET /devices/:id` `GET /devices/:id/telemetry` `GET /devices/:id/alerts` `POST /devices/:id/commands` `PUT /devices/:id/preferences` | Private |
+| **Alerts** | `GET /alerts` `PUT /alerts/read` | Private |
+| **Users** | `GET /users/preferences` `PUT /users/preferences` | Private |
+| **System** | `GET /system/overview` | Private |
 
 ---
 
