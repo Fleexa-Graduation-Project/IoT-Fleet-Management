@@ -74,6 +74,7 @@ func (s *Service) SendPushNotification(ctx context.Context, tokens []string, sev
 			Priority: "high",
 			Notification: &messaging.AndroidNotification{
 				Sound: "default",
+				ChannelID: "high_importance_channel", // Standard channel ID used in Flutter
 			},
 		},
 		APNS: &messaging.APNSConfig{
