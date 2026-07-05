@@ -60,14 +60,18 @@ func (s *Service) SendPushNotification(ctx context.Context, tokens []string, sev
 			"severity": severity,
 		},
 		Android: &messaging.AndroidConfig{
+			Priority: "high",
 			Notification: &messaging.AndroidNotification{
-				Sound: "alert_sound",
+				Sound: "default",
 			},
 		},
 		APNS: &messaging.APNSConfig{
+			Headers: map[string]string{
+				"apns-priority": "10",
+			},
 			Payload: &messaging.APNSPayload{
 				Aps: &messaging.Aps{
-					Sound: "alert_sound.wav",
+					Sound: "default",
 				},
 			},
 		},
