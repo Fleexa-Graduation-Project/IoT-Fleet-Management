@@ -77,4 +77,5 @@ variable "firebase_credentials_json" {
   description = "Firebase service account JSON content — paste the full JSON from Firebase Console"
   type        = string
   sensitive   = true
+  default     = "{}"
 }
