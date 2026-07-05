@@ -69,12 +69,15 @@ func (s *Service) SendPushNotification(ctx context.Context, tokens []string, sev
 		},
 		Data: map[string]string{
 			"severity": severity,
+			"title":    title,
+			"body":     body,
 		},
 		Android: &messaging.AndroidConfig{
 			Priority: "high",
 			Notification: &messaging.AndroidNotification{
 				Sound: "default",
 				ChannelID: "high_importance_channel", // Standard channel ID used in Flutter
+				ClickAction: "FLUTTER_NOTIFICATION_CLICK",
 			},
 		},
 		APNS: &messaging.APNSConfig{
