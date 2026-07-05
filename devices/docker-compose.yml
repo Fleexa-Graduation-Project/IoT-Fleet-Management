@@ -58,7 +58,7 @@ services:
       USER_IDS: ${USER_IDS:-}
       MQTT_BROKER: ${MQTT_BROKER:-a3u4b8ieayojua-ats.iot.us-east-1.amazonaws.com}
       MQTT_PORT: "8883"
-      PUBLISH_INTERVAL: "15"
+      PUBLISH_INTERVAL: "60"
 
   door-sensor:
     <<: *device-common

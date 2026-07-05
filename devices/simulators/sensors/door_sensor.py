@@ -17,6 +17,16 @@ class DoorSensor(BaseDevice):
         self.state = {"open": False, "duration_open_seconds": 0,
                       "last_change": None, "intrusion": False}
 
+    def _check_and_publish_alerts(self):
+        if self.battery_level < 10:
+            self.publish_alert("LOW_BATTERY", "CRITICAL",
+                               {"battery_level": self.battery_level, "threshold": 10})
+        if self.intrusion_detected:
+            self.publish_alert("INTRUSION_DETECTED", "CRITICAL", {})
+        if self.is_open and self.open_duration >= 60:
+            self.publish_alert("DOOR_LEFT_OPEN", "WARNING",
+                               {"duration_open_seconds": self.open_duration})
+
     def generate_telemetry(self) -> Dict[str, Any]:
         if not hasattr(self, 'battery_level'):
             self.battery_level = 100.0
@@ -36,6 +46,7 @@ class DoorSensor(BaseDevice):
             "last_change": self.last_change,
             "battery_level": round(self.battery_level, 1)
         })
+        self._check_and_publish_alerts()
         return {
             "sensor_type": "door_sensor",
             "open": self.is_open,
