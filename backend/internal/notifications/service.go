@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -16,15 +17,25 @@ type Service struct {
 	fcmClient *messaging.Client
 }
 
+type credJSON struct {
+	ProjectID string `json:"project_id"`
+}
 
 func NewService(credentialsSource string) (*Service, error) {
 	var opt option.ClientOption
+	config := &firebase.Config{}
+
 	if strings.HasPrefix(strings.TrimSpace(credentialsSource), "{") {
 		opt = option.WithCredentialsJSON([]byte(credentialsSource))
+		var creds credJSON
+		if err := json.Unmarshal([]byte(credentialsSource), &creds); err == nil {
+			config.ProjectID = creds.ProjectID
+		}
 	} else {
 		opt = option.WithCredentialsFile(credentialsSource)
 	}
-	app, err := firebase.NewApp(context.Background(), nil, opt)
+
+	app, err := firebase.NewApp(context.Background(), config, opt)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing firebase app: %w", err)
 	}
