@@ -26,10 +26,25 @@ func NewService(credentialsSource string) (*Service, error) {
 	config := &firebase.Config{}
 
 	if strings.HasPrefix(strings.TrimSpace(credentialsSource), "{") {
-		opt = option.WithCredentialsJSON([]byte(credentialsSource))
+		// Terraform may unescape \\n in the private_key to real newlines,
+		// which breaks JSON parsing. Fix by replacing raw newlines inside the
+		// JSON string with the \\n escape sequence.
+		sanitized := strings.ReplaceAll(credentialsSource, "\n", "\\n")
+		// But don't double-escape already-escaped \\n
+		sanitized = strings.ReplaceAll(sanitized, "\\\\n", "\\n")
+
+		opt = option.WithCredentialsJSON([]byte(sanitized))
 		var creds credJSON
-		if err := json.Unmarshal([]byte(credentialsSource), &creds); err == nil {
+		if err := json.Unmarshal([]byte(sanitized), &creds); err == nil {
 			config.ProjectID = creds.ProjectID
+			slog.Info("firebase credentials parsed", "project_id", creds.ProjectID)
+		} else {
+			slog.Error("failed to parse firebase credentials JSON", "error", err)
+		}
+		// Fallback: if project_id was empty after parsing, try to extract it
+		if config.ProjectID == "" {
+			slog.Warn("project_id was empty after JSON parse, setting fallback")
+			config.ProjectID = "fleexa-d36d3"
 		}
 	} else {
 		opt = option.WithCredentialsFile(credentialsSource)
