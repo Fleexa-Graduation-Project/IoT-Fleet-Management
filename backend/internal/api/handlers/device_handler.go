@@ -396,7 +396,8 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 		response["source"] = "S3 processed data"
 		monthlyData := handler.getMonthlyData(context.Request.Context(), userID, deviceID)
 		if period == "7d" {
-			response["data"] = telemetry.FillWeekSlots(monthlyData, time.Now())
+			weekData := telemetry.FillWeekSlots(monthlyData, time.Now())
+			response["data"] = handler.overlayToday(context.Request.Context(), userID, deviceID, state.Type, metric, now, weekData)
 		} else if period == "1m" {
 			if len(monthlyData) == 0 {
 				response["data"] = []telemetry.ChartPoint{}
@@ -455,6 +456,25 @@ func (handler *DeviceHandler) MarkAlertRead(c *gin.Context) {
 
 func isHotTier(period string) bool {
 	return period == "24h"
+}
+
+//replaces the last ("today") slot of a 7-day chart with a value
+func (handler *DeviceHandler) overlayToday(ctx context.Context, userID, deviceID, deviceType, metric string, now int64, weekData []telemetry.ChartPoint) []telemetry.ChartPoint {
+	if len(weekData) == 0 {
+		return weekData
+	}
+
+	nowTime := time.Unix(now, 0)
+	todayStart := time.Date(nowTime.Year(), nowTime.Month(), nowTime.Day(), 0, 0, 0, 0, nowTime.Location()).Unix()
+
+	todayHistory, err := handler.TelemetryStore.GetTelemetryHistory(ctx, userID, deviceID, 0, todayStart)
+	if err != nil {
+		slog.Warn("failed to fetch today's telemetry for 7d chart overlay", "device_id", deviceID, "error", err)
+		return weekData
+	}
+
+	weekData[len(weekData)-1].Value = telemetry.CalculateTodayValue(todayHistory, deviceType, metric, now)
+	return weekData
 }
 
 // GET /api/v1/system/overview
@@ -521,6 +541,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		var acUsage []telemetry.ChartPoint
 		if timeFilter == "7d" {
 			acUsage = telemetry.FillWeekSlots(acMonthlyData, time.Now())
+			acUsage = handler.overlayToday(context.Request.Context(), userID, "ac-actuator-01", "ac-actuator", "", now, acUsage)
 		} else {
 			acUsage = telemetry.ChunkIntoWeeks(acMonthlyData)
 		}
