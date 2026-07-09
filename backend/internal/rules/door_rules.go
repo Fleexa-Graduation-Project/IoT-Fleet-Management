@@ -85,6 +85,6 @@ func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, state models.De
 	slog.Warn("door security event logged", "user_id", state.UserID, "device_id", state.DeviceID, "severity", severity)
 
 	// send notification to app
-	title := fmt.Sprintf("%s Door Alert", titleCaseSeverity(severity))
+	title := fmt.Sprintf("%s Door Alert", TitleCaseSeverity(severity))
 	engine.Notify(ctx, state.UserID, severity, title, description)
 }

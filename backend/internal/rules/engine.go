@@ -26,7 +26,7 @@ func NewAlertEngine(alertStore *alerts.AlertStore, stateStore *devices.StateStor
 	}
 }
 
-func titleCaseSeverity(severity string) string {
+func TitleCaseSeverity(severity string) string {
 	if severity == "CRITICAL" {
 		return "Critical"
 	}

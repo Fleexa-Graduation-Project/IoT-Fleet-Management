@@ -27,7 +27,7 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, userID, deviceID strin
 		if status == "WARNING" && !alarmOn {
 			severity = "WARNING"
 		}
-		title := fmt.Sprintf("%s Gas Alert", titleCaseSeverity(severity))
+		title := fmt.Sprintf("%s Gas Alert", TitleCaseSeverity(severity))
 		description := fmt.Sprintf("Gas Level: %.0f PPM", gasLevel)
 
 		err := engine.alertStore.SaveAlert(ctx, models.Alert{
