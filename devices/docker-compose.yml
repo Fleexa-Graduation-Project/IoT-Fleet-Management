@@ -122,34 +122,31 @@ services:
 
   # ── Device Simulator ─────────────────────────────────────────────────────
   # Invokes processing_main_lambda directly via boto3 every 10 seconds.
-  # Runs automatically alongside all real device containers.
-  # AWS credentials are picked up from the host in this priority order:
-  #   1. AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_SESSION_TOKEN env vars
-  #   2. ~/.aws credentials bind-mount (default below)
-  simulator:
-    build:
-      context: ..
-      dockerfile: backend/scripts/Dockerfile.simulator
-    container_name: fleexa-simulator
-    restart: always
-    stop_grace_period: 10s
-    environment:
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
-      SIMULATOR_USER_ID: ${USER_ID:-34c81498-30c1-709b-3fe2-61f8bcce903a}
-      SIMULATOR_INTERVAL: ${SIMULATOR_INTERVAL:-10}
-    volumes:
-      - ${HOME}/.aws:/root/.aws:ro
-    networks:
-      - iot-network
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+  # (Disabled: Use the real MQTT-based simulators above instead to prevent duplicate spam)
+  # simulator:
+  #   build:
+  #     context: ..
+  #     dockerfile: backend/scripts/Dockerfile.simulator
+  #   container_name: fleexa-simulator
+  #   restart: always
+  #   stop_grace_period: 10s
+  #   environment:
+  #     AWS_REGION: ${AWS_REGION:-us-east-1}
+  #     AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  #     AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+  #     AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+  #     AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+  #     SIMULATOR_USER_ID: ${USER_ID:-34c81498-30c1-709b-3fe2-61f8bcce903a}
+  #     SIMULATOR_INTERVAL: ${SIMULATOR_INTERVAL:-10}
+  #   volumes:
+  #     - ${HOME}/.aws:/root/.aws:ro
+  #   networks:
+  #     - iot-network
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
 
   localstack:
     image: localstack/localstack:latest
