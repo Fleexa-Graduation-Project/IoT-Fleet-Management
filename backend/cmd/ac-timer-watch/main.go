@@ -4,10 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
+	"github.com/Fleexa-Graduation-Project/Backend/internal/alerts"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/devices"
 	"github.com/Fleexa-Graduation-Project/Backend/internal/iot"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/notifications"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/rules"
+	"github.com/Fleexa-Graduation-Project/Backend/internal/users"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/db"
 	"github.com/Fleexa-Graduation-Project/Backend/pkg/logger"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -15,9 +20,10 @@ import (
 )
 
 var (
-	log        *slog.Logger
-	stateStore *devices.StateStore
-	publisher  *iot.Publisher
+	log         *slog.Logger
+	stateStore  *devices.StateStore
+	publisher   *iot.Publisher
+	alertEngine *rules.AlertEngine
 )
 
 func init() {
@@ -40,6 +46,29 @@ func init() {
 		panic(fmt.Errorf("failed to load aws config: %w", err))
 	}
 	publisher = iot.NewPublisher(cfg)
+
+	alertStore, err := alerts.NewAlertStore()
+	if err != nil {
+		panic(fmt.Errorf("failed to init alert store: %w", err))
+	}
+
+	firebaseKeyPath := os.Getenv("FIREBASE_CREDENTIALS")
+	if firebaseKeyPath == "" {
+		firebaseKeyPath = "./firebase-adminsdk.json"
+	}
+
+	notifier, err := notifications.NewService(firebaseKeyPath)
+	if err != nil {
+		log.Error("failed to init notification service (firebase)", "error", err)
+	}
+
+	userStore, userErr := users.NewUserStore()
+	if userErr != nil {
+		log.Warn("user store unavailable, push notifications will be skipped", "error", userErr)
+		userStore = nil
+	}
+
+	alertEngine = rules.NewAlertEngine(alertStore, stateStore, notifier, userStore)
 
 	log.Info("ac-timer-watch lambda -> cold start complete, stores ready")
 }
@@ -85,6 +114,8 @@ func handler(ctx context.Context, _ map[string]interface{}) error {
 				"device_id", state.DeviceID,
 				"error", updateErr)
 		}
+
+		alertEngine.NotifyACTimerExpired(ctx, state)
 
 		log.Info("ac-timer-watch -> timer expired, AC turned off",
 			"device_id", state.DeviceID,
