@@ -11,13 +11,17 @@ import (
 
 //pushes an informational notification when an ac timer finshies
 func (engine *AlertEngine) NotifyACTimerExpired(ctx context.Context, state models.DeviceState) {
-	description := fmt.Sprintf("%s has been turned off automatically — the timer finished.", state.DeviceID)
+	description := "AC has been turned off automatically — the timer finished."
 
 	lastOn, lastOnOk := state.Payload["last_turned_on"].(float64)
 	endTs, endTsOk := state.Payload["timer_end_timestamp"].(float64)
 	if lastOnOk && endTsOk && endTs > lastOn {
 		minutes := (int64(endTs) - int64(lastOn)) / 60
-		description = fmt.Sprintf("%s turned off after running for %d minutes, as scheduled.", state.DeviceID, minutes)
+		unit := "minutes"
+		if minutes == 1 {
+			unit = "minute"
+		}
+		description = fmt.Sprintf("AC turned off after running for %d %s, as scheduled.", minutes, unit)
 	}
 
 	err := engine.alertStore.SaveAlert(ctx, models.Alert{
