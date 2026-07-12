@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "771231815277",
+    "project_id": "fleexa-d36d3",
+    "storage_bucket": "fleexa-d36d3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:771231815277:android:6fb867eaecb7d2b2655164",
+        "android_client_info": {
+          "package_name": "com.example.fleexa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCMb8gapK1WnRbrpxgxvx9RxkwiEJgUJY0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
