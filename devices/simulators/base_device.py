@@ -361,39 +361,40 @@ class BaseDevice(ABC):
             telemetry_payload: Device-specific sensor data
         """
         try:
-            publish_user_id = self.config.user_id
+            user_list = [self.config.user_id]
             if hasattr(self.config, 'user_ids') and self.config.user_ids:
-                import random
-                publish_user_id = random.choice(self.config.user_ids)
-
-            topic = f"devices/{publish_user_id}/{self.config.device_id}/telemetry"
+                user_list = self.config.user_ids
 
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
             )
-            # Timestamp stamped at actual publish time — always fresh.
-            message = {
-                "user_id":   publish_user_id,
-                "device_id": self.config.device_id,
-                "timestamp": int(time.time()),
-                "type":      device_type_key,
-                "payload":   telemetry_payload
-            }
+            
+            for publish_user_id in user_list:
+                topic = f"devices/{publish_user_id}/{self.config.device_id}/telemetry"
 
-            # Validate against schema
-            if not self.validator.validate_telemetry(message):
-                logger.error(f"❌ Telemetry validation failed for {self.config.device_id}")
-                return
+                # Timestamp stamped at actual publish time — always fresh.
+                message = {
+                    "user_id":   publish_user_id,
+                    "device_id": self.config.device_id,
+                    "timestamp": int(time.time()),
+                    "type":      device_type_key,
+                    "payload":   telemetry_payload
+                }
 
-            # Publish
-            payload_json = json.dumps(message)
-            self.mqtt_client.publish(topic, payload_json, qos=1)
+                # Validate against schema
+                if not self.validator.validate_telemetry(message):
+                    logger.error(f"❌ Telemetry validation failed for {self.config.device_id} (user {publish_user_id})")
+                    continue
 
-            self.last_published[topic] = datetime.now()
+                # Publish
+                payload_json = json.dumps(message)
+                self.mqtt_client.publish(topic, payload_json, qos=1)
+
+                self.last_published[topic] = datetime.now()
+                logger.debug(f"📤 Telemetry published: {topic}")
+                
             self.last_heartbeat = time.time()
             self.uptime_seconds += self.config.publish_interval
-
-            logger.debug(f"📤 Telemetry published: {topic}")
         except Exception as e:
             logger.error(f"❌ Publish error: {e}")
             self.error_count += 1
@@ -420,12 +421,9 @@ class BaseDevice(ABC):
             additional_data: Optional extra alert data
         """
         try:
-            publish_user_id = self.config.user_id
+            user_list = [self.config.user_id]
             if hasattr(self.config, 'user_ids') and self.config.user_ids:
-                import random
-                publish_user_id = random.choice(self.config.user_ids)
-
-            topic = f"devices/{publish_user_id}/{self.config.device_id}/alerts"
+                user_list = self.config.user_ids
 
             device_type_key = DEVICE_TYPE_MAP.get(
                 self.config.device_type, self.config.device_type
@@ -440,25 +438,28 @@ class BaseDevice(ABC):
             if additional_data:
                 alert_payload.update(additional_data)
 
-            # Build schema-compliant message — timestamp always fresh at publish time
-            message = {
-                "user_id":   publish_user_id,
-                "device_id": self.config.device_id,
-                "timestamp": int(time.time()),
-                "type":      device_type_key,
-                "payload":   alert_payload
-            }
+            for publish_user_id in user_list:
+                topic = f"devices/{publish_user_id}/{self.config.device_id}/alerts"
 
-            # Validate against schema
-            if not self.validator.validate_alert(message):
-                logger.error(f"❌ Alert validation failed for {self.config.device_id}")
-                return
+                # Build schema-compliant message — timestamp always fresh at publish time
+                message = {
+                    "user_id":   publish_user_id,
+                    "device_id": self.config.device_id,
+                    "timestamp": int(time.time()),
+                    "type":      device_type_key,
+                    "payload":   alert_payload
+                }
 
-            # Publish
-            payload_json = json.dumps(message)
-            self.mqtt_client.publish(topic, payload_json, qos=1)
+                # Validate against schema
+                if not self.validator.validate_alert(message):
+                    logger.error(f"❌ Alert validation failed for {self.config.device_id} (user {publish_user_id})")
+                    continue
 
-            logger.info(f"🚨 Alert published: {alert_status} ({severity})")
+                # Publish
+                payload_json = json.dumps(message)
+                self.mqtt_client.publish(topic, payload_json, qos=1)
+
+                logger.info(f"🚨 Alert published for {publish_user_id}: {alert_status} ({severity})")
         except Exception as e:
             logger.error(f"❌ Alert publish error: {e}")
 

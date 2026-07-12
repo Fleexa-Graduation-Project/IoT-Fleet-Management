@@ -26,6 +26,13 @@ func NewAlertEngine(alertStore *alerts.AlertStore, stateStore *devices.StateStor
 	}
 }
 
+func TitleCaseSeverity(severity string) string {
+	if severity == "CRITICAL" {
+		return "Critical"
+	}
+	return "Warning"
+}
+
 func (e *AlertEngine) Notify(ctx context.Context, userID, severity, title, body string) {
 	if e.userStore == nil {
 		slog.Warn("user store unavailable, skipping notification", "user_id", userID, "severity", severity)

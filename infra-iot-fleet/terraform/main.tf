@@ -20,6 +20,8 @@ module "api_gateway" {
   bucket_name          = module.s3.bucket_id
   iot_endpoint         = var.iot_endpoint
   users_table_name     = var.users_table_name
+  fleet_lat            = var.fleet_lat
+  fleet_lon            = var.fleet_lon
 }
 
 module "s3" {
@@ -64,7 +66,8 @@ module "door_watch_lambda" {
     USERS_TABLE          = "iot-fleet_Users"
     COGNITO_USER_POOL_ID = module.cognito.user_pool_id
     COGNITO_CLIENT_ID    = module.cognito.client_id
-    FIREBASE_CREDENTIALS = "./firebase-adminsdk.json"
+    IOT_ENDPOINT         = var.iot_endpoint
+    FIREBASE_CREDENTIALS = var.firebase_credentials_json
   }
 
   depends_on = [data.archive_file.door_watch_lambda_zip]
@@ -90,3 +93,45 @@ resource "aws_lambda_permission" "allow_eventbridge_door_watch" {
   source_arn    = aws_cloudwatch_event_rule.every_minute.arn
 }
 
+module "ac_timer_watch_lambda" {
+  source = "./modules/lambda"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  function_name = "ac-timer-watch-service"
+
+  lambda_zip_path  = data.archive_file.ac_timer_watch_lambda_zip.output_path
+  source_code_hash = data.archive_file.ac_timer_watch_lambda_zip.output_base64sha256
+
+  custom_policy_json = data.aws_iam_policy_document.iot_ingestion_policy.json
+
+  environment_variables = {
+    ENVIRONMENT          = var.environment
+    TELEMETRY_TABLE      = "${var.project_name}-${var.environment}-telemetry"
+    ALERTS_TABLE         = "${var.project_name}-${var.environment}-alerts"
+    STATE_TABLE          = "${var.project_name}-${var.environment}-device-state"
+    COMMANDS_TABLE       = "${var.project_name}-${var.environment}-commands"
+    USERS_TABLE          = "iot-fleet_Users"
+    COGNITO_USER_POOL_ID = module.cognito.user_pool_id
+    COGNITO_CLIENT_ID    = module.cognito.client_id
+    IOT_ENDPOINT         = var.iot_endpoint
+    FIREBASE_CREDENTIALS = var.firebase_credentials_json
+  }
+
+  depends_on = [data.archive_file.ac_timer_watch_lambda_zip]
+}
+
+resource "aws_cloudwatch_event_target" "ac_timer_watch_target" {
+  rule      = aws_cloudwatch_event_rule.every_minute.name
+  target_id = "TriggerACTimerWatchLambda"
+  arn       = module.ac_timer_watch_lambda.function_arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge_ac_timer_watch" {
+  statement_id  = "AllowExecutionFromEventBridgeACTimerWatch"
+  action        = "lambda:InvokeFunction"
+  function_name = module.ac_timer_watch_lambda.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.every_minute.arn
+}

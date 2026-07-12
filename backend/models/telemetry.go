@@ -6,5 +6,5 @@ type Telemetry struct {
 	Timestamp EpochTime              `json:"timestamp"  dynamodbav:"timestamp"`
 	Type      string                 `json:"type"       dynamodbav:"type"`
 	Payload   map[string]interface{} `json:"payload"    dynamodbav:"payload"`
-	ExpiresAt EpochTime              `json:"expires_at" dynamodbav:"expires_at"`
+	ExpiresAt EpochTime              `json:"expires_at" dynamodbav:"ttl"`
 }

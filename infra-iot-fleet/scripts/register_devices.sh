@@ -21,7 +21,7 @@ DEVICES=(
   "light-sensor-01"
   "gas-sensor-01"
   "door-sensor-01"
-  "ac-curtain-01"
+  "ac-actuator-01"
   "door-actuator-01"
 )
 

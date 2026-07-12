@@ -569,6 +569,31 @@ func GetAlerts(alertList []models.Alert, period string) map[string][]ChartPoint 
 	}
 }
 
+func CalculateTodayValue(history []models.Telemetry, deviceType, metric string, now int64) float64 {
+	if deviceType == "ac-actuator" {
+		totalSeconds := CalculateACRunTime(history, now)
+		return math.Round((float64(totalSeconds)/3600.0)*10) / 10
+	}
+
+	var sum float64
+	var count int
+	for _, record := range history {
+		if val, exists := record.Payload[metric]; exists {
+			if floatVal, ok := val.(float64); ok {
+				sum += floatVal
+				count++
+			} else if intVal, ok := val.(int); ok {
+				sum += float64(intVal)
+				count++
+			}
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return math.Round((sum/float64(count))*10) / 10
+}
+
 func CalculateEnergy(acUsage []ChartPoint) []ChartPoint {
 	const acPower = 1.5
 

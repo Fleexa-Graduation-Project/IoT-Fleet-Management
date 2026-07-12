@@ -25,10 +25,10 @@ class GasSensor(BaseDevice):
         self.gas_level  += random.uniform(-15, 20)
         self.co_ppm   += random.uniform(-0.2, 0.3)
         self.lpg_ppm  += random.uniform(-10, 12)
-        # Random dangerous spike (0.5% chance)
-        if random.random() < 0.005:
-            self.co_ppm  += random.uniform(20, 50)
-            self.lpg_ppm += random.uniform(2000, 4000)
+        # Random gradual leak (5% chance) to trigger warnings before criticals
+        if random.random() < 0.05:
+            self.co_ppm  += random.uniform(5, 10)
+            self.lpg_ppm += random.uniform(500, 1000)
         self.gas_level  = round(max(350, min(5000, self.gas_level)), 1)
         self.co_ppm   = round(max(0, min(200, self.co_ppm)), 2)
         self.lpg_ppm  = round(max(0, min(10000, self.lpg_ppm)), 1)

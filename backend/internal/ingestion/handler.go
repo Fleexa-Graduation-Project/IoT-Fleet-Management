@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -176,13 +177,21 @@ func (service *Service) handleTelemetry(ctx context.Context, deviceID string, en
 func (service *Service) handleAlert(ctx context.Context, deviceID string, envelope models.MQTTEnvelope) error {
 	severity, _ := envelope.Payload["severity"].(string)
 
+	title, description := buildDeviceAlertContent(envelope.Type, severity, envelope.Payload)
+
+	alertPayload := envelope.Payload
+	if alertPayload == nil {
+		alertPayload = map[string]interface{}{}
+	}
+	alertPayload["description"] = description
+
 	alert := models.Alert{
 		UserID:    envelope.UserID,
 		DeviceID:  envelope.DeviceID,
 		Timestamp: models.EpochTime(envelope.Timestamp),
 		Type:      envelope.Type,
 		Severity:  severity,
-		Payload:   envelope.Payload,
+		Payload:   alertPayload,
 	}
 
 	alert.GenerateID()
@@ -193,14 +202,35 @@ func (service *Service) handleAlert(ctx context.Context, deviceID string, envelo
 
 	service.Logger.Info("alert saved, sending notification to", "user_id", envelope.UserID, "device_id", deviceID, "severity", severity)
 
-	title := fmt.Sprintf("%s — %s", severity, envelope.Type)
-	description, _ := envelope.Payload["description"].(string)
-	if description == "" {
-		description = fmt.Sprintf("%s alert triggered", envelope.Type)
-	}
 	service.Engine.Notify(ctx, envelope.UserID, severity, title, description)
 
 	return service.StateStore.UpdateHeartbeat(ctx, envelope.UserID, deviceID)
+}
+
+func buildDeviceAlertContent(deviceType, severity string, payload map[string]interface{}) (title, description string) {
+	switch {
+	case deviceType == "gas-sensor":
+		title = fmt.Sprintf("%s Gas Alert", rules.TitleCaseSeverity(severity))
+		description = fmt.Sprintf("Gas Level: %.0f PPM", payloadFloat(payload, "gas_level"))
+	case strings.Contains(deviceType, "door"):
+		title = fmt.Sprintf("%s Door Alert", rules.TitleCaseSeverity(severity))
+		minutes := int64(payloadFloat(payload, "duration_open_seconds") / 60)
+		description = fmt.Sprintf("Door left unlocked for %d minutes", minutes)
+	default:
+		title = fmt.Sprintf("%s Alert", rules.TitleCaseSeverity(severity))
+		description = fmt.Sprintf("%s alert triggered", deviceType)
+	}
+	return title, description
+}
+
+func payloadFloat(payload map[string]interface{}, key string) float64 {
+	if val, ok := payload[key].(float64); ok {
+		return val
+	}
+	if intVal, ok := payload[key].(int); ok {
+		return float64(intVal)
+	}
+	return 0
 }
 
 func (service *Service) logValidationError(err error, deviceID string) {

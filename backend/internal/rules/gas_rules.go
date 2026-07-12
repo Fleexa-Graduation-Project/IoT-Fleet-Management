@@ -2,6 +2,7 @@ package rules
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -23,11 +24,11 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, userID, deviceID strin
 		}
 
 		severity := "CRITICAL"
-		description := "Gas level critical"
 		if status == "WARNING" && !alarmOn {
 			severity = "WARNING"
-			description = "Gas spike detected"
 		}
+		title := fmt.Sprintf("%s Gas Alert", TitleCaseSeverity(severity))
+		description := fmt.Sprintf("Gas Level: %.0f PPM", gasLevel)
 
 		err := engine.alertStore.SaveAlert(ctx, models.Alert{
 			UserID:    userID,
@@ -45,7 +46,7 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, userID, deviceID strin
 			slog.Error("failed to save gas alert to db", "error", err, "user_id", userID, "device_id", deviceID)
 		} else {
 			slog.Warn("gas alert triggered", "user_id", userID, "device_id", deviceID, "severity", severity)
-			engine.Notify(ctx, userID, severity, "Gas Alert", description)
+			engine.Notify(ctx, userID, severity, title, description)
 		}
 	}
 }

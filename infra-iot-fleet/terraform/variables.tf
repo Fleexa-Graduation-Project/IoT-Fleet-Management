@@ -60,3 +60,22 @@ variable "users_table_name" {
   type        = string
   default     = "iot-fleet_Users"
 }
+
+variable "fleet_lat" {
+  description = "Fleet location latitude for weather API"
+  type        = string
+  default     = ""
+}
+
+variable "fleet_lon" {
+  description = "Fleet location longitude for weather API"
+  type        = string
+  default     = ""
+}
+
+variable "firebase_credentials_json" {
+  description = "Firebase service account JSON content — paste the full JSON from Firebase Console"
+  type        = string
+  sensitive   = true
+  default     = "{}"
+}

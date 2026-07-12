@@ -48,10 +48,10 @@ func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
 
 		if mins == 1 {
 			severity = "WARNING"
-			description = "Warning: The door has been unlocked for 1 minute."
+			description = "Door left unlocked for 1 minute"
 		} else if mins >= 2 && mins <= 16 && isPowerOfTwo {
 			severity = "CRITICAL"
-			description = fmt.Sprintf("Critical: Door unlocked for %d minutes. Please secure it.", mins)
+			description = fmt.Sprintf("Door left unlocked for %d minutes", mins)
 		}
 
 		if severity != "" {
@@ -85,5 +85,6 @@ func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, state models.De
 	slog.Warn("door security event logged", "user_id", state.UserID, "device_id", state.DeviceID, "severity", severity)
 
 	// send notification to app
-	engine.Notify(ctx, state.UserID, severity, "Door Alert", description)
+	title := fmt.Sprintf("%s Door Alert", TitleCaseSeverity(severity))
+	engine.Notify(ctx, state.UserID, severity, title, description)
 }

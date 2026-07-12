@@ -4,3 +4,8 @@ CLAUDE.md
 .vscode/
 .env 
 api.exe
+
+# Build artifacts
+dist/
+bootstrap
+*.zip

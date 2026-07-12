@@ -46,6 +46,12 @@ class DoorLocker(BaseDevice):
         if self.is_jammed:
             self.publish_alert("JAM_DETECTED", "CRITICAL",
                                {"location": self.config.location})
+        if self.lock_state == LockStatus.UNLOCKED and self.last_unlock_time:
+            # If left unlocked for more than 60 seconds
+            duration = int(time.time()) - self.last_unlock_time
+            if duration >= 60:
+                self.publish_alert("DOOR_LEFT_UNLOCKED", "WARNING",
+                                   {"duration_open_seconds": duration})
 
     def _execute_lock(self) -> bool:
         if self.is_jammed:

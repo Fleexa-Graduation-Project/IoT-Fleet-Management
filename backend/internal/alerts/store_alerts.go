@@ -46,7 +46,7 @@ func (store *AlertStore) SaveAlert(ctx context.Context, alert models.Alert) erro
 		alert.GenerateID()
 	}
 	if alert.ExpiresAt == 0 {
-		alert.ExpiresAt = models.EpochTime(time.Now().Add(30 * 24 * time.Hour).Unix())
+		alert.ExpiresAt = models.EpochTime(time.Now().Add(7 * 24 * time.Hour).Unix())
 	}
 
 	item, err := attributevalue.MarshalMap(alert)
@@ -148,14 +148,13 @@ func (store *AlertStore) MarkAlertAsRead(ctx context.Context, alertID string) er
 	if lastHash < 0 {
 		return fmt.Errorf("MarkAlertAsRead: invalid alert_id format: %s", alertID)
 	}
-	userDeviceID := alertID[:lastHash]
 	tsStr := alertID[lastHash+1:]
 
 	_, err := store.Client.UpdateItem(ctx, &dynamodb.UpdateItemInput{
 		TableName: aws.String(store.TableName),
 		Key: map[string]types.AttributeValue{
-			"user_device_id": &types.AttributeValueMemberS{Value: userDeviceID},
-			"timestamp":      &types.AttributeValueMemberN{Value: tsStr},
+			"alert_id":  &types.AttributeValueMemberS{Value: alertID},
+			"timestamp": &types.AttributeValueMemberN{Value: tsStr},
 		},
 		UpdateExpression: aws.String("SET is_read = :true"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{

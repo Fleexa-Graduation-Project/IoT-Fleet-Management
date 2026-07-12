@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -395,7 +396,8 @@ func (handler *DeviceHandler) GetDeviceTelemetry(context *gin.Context) {
 		response["source"] = "S3 processed data"
 		monthlyData := handler.getMonthlyData(context.Request.Context(), userID, deviceID)
 		if period == "7d" {
-			response["data"] = telemetry.FillWeekSlots(monthlyData, time.Now())
+			weekData := telemetry.FillWeekSlots(monthlyData, time.Now())
+			response["data"] = handler.overlayToday(context.Request.Context(), userID, deviceID, state.Type, metric, now, weekData)
 		} else if period == "1m" {
 			if len(monthlyData) == 0 {
 				response["data"] = []telemetry.ChartPoint{}
@@ -433,16 +435,18 @@ func (handler *DeviceHandler) GetDeviceAlerts(context *gin.Context) {
 	context.JSON(http.StatusOK, gin.H{"data": alertList})
 }
 
-// PUT /api/v1/alerts/:id/read
+// PUT /api/v1/alerts/read
 func (handler *DeviceHandler) MarkAlertRead(c *gin.Context) {
-	alertID := c.Param("id")
-	if alertID == "" {
+	var req struct {
+		AlertID string `json:"alert_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || req.AlertID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "alert_id is required"})
 		return
 	}
 
-	if err := handler.AlertStore.MarkAlertAsRead(c.Request.Context(), alertID); err != nil {
-		slog.Error("failed to mark alert as read", "alert_id", alertID, "error", err)
+	if err := handler.AlertStore.MarkAlertAsRead(c.Request.Context(), req.AlertID); err != nil {
+		slog.Error("failed to mark alert as read", "alert_id", req.AlertID, "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to mark alert as read"})
 		return
 	}
@@ -452,6 +456,25 @@ func (handler *DeviceHandler) MarkAlertRead(c *gin.Context) {
 
 func isHotTier(period string) bool {
 	return period == "24h"
+}
+
+//replaces the last ("today") slot of a 7-day chart with a value
+func (handler *DeviceHandler) overlayToday(ctx context.Context, userID, deviceID, deviceType, metric string, now int64, weekData []telemetry.ChartPoint) []telemetry.ChartPoint {
+	if len(weekData) == 0 {
+		return weekData
+	}
+
+	nowTime := time.Unix(now, 0)
+	todayStart := time.Date(nowTime.Year(), nowTime.Month(), nowTime.Day(), 0, 0, 0, 0, nowTime.Location()).Unix()
+
+	todayHistory, err := handler.TelemetryStore.GetTelemetryHistory(ctx, userID, deviceID, 0, todayStart)
+	if err != nil {
+		slog.Warn("failed to fetch today's telemetry for 7d chart overlay", "device_id", deviceID, "error", err)
+		return weekData
+	}
+
+	weekData[len(weekData)-1].Value = telemetry.CalculateTodayValue(todayHistory, deviceType, metric, now)
+	return weekData
 }
 
 // GET /api/v1/system/overview
@@ -518,6 +541,7 @@ func (handler *DeviceHandler) GetSystemOverview(context *gin.Context) {
 		var acUsage []telemetry.ChartPoint
 		if timeFilter == "7d" {
 			acUsage = telemetry.FillWeekSlots(acMonthlyData, time.Now())
+			acUsage = handler.overlayToday(context.Request.Context(), userID, "ac-actuator-01", "ac-actuator", "", now, acUsage)
 		} else {
 			acUsage = telemetry.ChunkIntoWeeks(acMonthlyData)
 		}
@@ -542,8 +566,8 @@ func buildACStateUpdate(action string, params map[string]interface{}, now int64)
 	fields := map[string]interface{}{}
 	opState := ""
 
-	switch action {
-	case "set_power":
+	switch strings.ToLower(action) {
+	case "set_power", "set_state":
 		if ps, ok := params["power_state"].(string); ok {
 			fields["power_state"] = ps
 			opState = ps
@@ -552,13 +576,16 @@ func buildACStateUpdate(action string, params map[string]interface{}, now int64)
 			}
 			if ps == "OFF" {
 				fields["timer_end_timestamp"] = int64(0)
+				fields["last_turned_on"] = int64(0)
 			}
 		}
-	case "set_temperature":
+	case "set_temperature", "set_ac_temp":
 		if temp, ok := params["target_temp"].(float64); ok {
 			fields["target_temp"] = temp
+		} else if temp, ok := params["temperature"].(float64); ok {
+			fields["target_temp"] = temp
 		}
-	case "set_mode":
+	case "set_mode", "set_ac_mode":
 		if mode, ok := params["mode"].(string); ok {
 			fields["mode"] = mode
 		}
@@ -585,6 +612,26 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		return
 	}
 
+	now := time.Now().Unix()
+	
+	actionLower := strings.ToLower(req.Action)
+	if actionLower == "set_timer" {
+		if req.Parameters == nil {
+			req.Parameters = make(map[string]interface{})
+		}
+		if secs, ok := req.Parameters["duration_seconds"].(float64); ok && secs > 0 {
+			req.Parameters["timer_end_timestamp"] = now + int64(secs)
+			req.Parameters["last_turned_on"] = now
+		}
+	} else if actionLower == "set_power" || actionLower == "set_state" {
+		if req.Parameters == nil {
+			req.Parameters = make(map[string]interface{})
+		}
+		if ps, ok := req.Parameters["power_state"].(string); ok && ps == "ON" {
+			req.Parameters["last_turned_on"] = now
+		}
+	}
+
 	requestID := fmt.Sprintf("cmd-%d", time.Now().UnixNano())
 	mqttPayload := map[string]interface{}{
 		"request_id": requestID,
@@ -599,8 +646,6 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		context.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to communicate with device"})
 		return
 	}
-
-	now := time.Now().Unix()
 
 	acFields, opState := buildACStateUpdate(req.Action, req.Parameters, now)
 	if len(acFields) > 0 {
@@ -617,7 +662,7 @@ func (handler *DeviceHandler) SendCommand(context *gin.Context) {
 		UserID:     userID,
 		DeviceID:   deviceID,
 		Timestamp:  models.EpochTime(now),
-		ExpiresAt:  models.EpochTime(now + (30 * 24 * 60 * 60)), // TTL: 30 days
+		ExpiresAt:  models.EpochTime(now + (7 * 24 * 60 * 60)), // TTL: 7 days
 		Action:     req.Action,
 		Parameters: req.Parameters,
 	}
