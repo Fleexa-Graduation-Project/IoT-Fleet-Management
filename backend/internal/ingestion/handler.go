@@ -183,6 +183,7 @@ func (service *Service) handleAlert(ctx context.Context, deviceID string, envelo
 	if alertPayload == nil {
 		alertPayload = map[string]interface{}{}
 	}
+	alertPayload["title"] = title
 	alertPayload["description"] = description
 
 	alert := models.Alert{

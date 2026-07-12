@@ -66,6 +66,8 @@ func (engine *AlertEngine) CheckDoorTimeouts(ctx context.Context) {
 }
 
 func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, state models.DeviceState, severity, description string) {
+	title := fmt.Sprintf("%s Door Alert", TitleCaseSeverity(severity))
+
 	err := engine.alertStore.SaveAlert(ctx, models.Alert{
 		UserID:    state.UserID,
 		DeviceID:  state.DeviceID,
@@ -73,6 +75,7 @@ func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, state models.De
 		Severity:  severity,
 		Timestamp: models.EpochTime(time.Now().Unix()),
 		Payload: map[string]interface{}{
+			"title":       title,
 			"description": description,
 		},
 	})
@@ -85,6 +88,5 @@ func (engine *AlertEngine) triggerDoorAlert(ctx context.Context, state models.De
 	slog.Warn("door security event logged", "user_id", state.UserID, "device_id", state.DeviceID, "severity", severity)
 
 	// send notification to app
-	title := fmt.Sprintf("%s Door Alert", TitleCaseSeverity(severity))
 	engine.Notify(ctx, state.UserID, severity, title, description)
 }

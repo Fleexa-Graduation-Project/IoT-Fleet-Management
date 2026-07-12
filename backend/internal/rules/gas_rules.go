@@ -37,6 +37,7 @@ func (engine *AlertEngine) HandleGas(ctx context.Context, userID, deviceID strin
 			Severity:  severity,
 			Timestamp: models.EpochTime(time.Now().Unix()),
 			Payload: map[string]interface{}{
+				"title":       title,
 				"description": description,
 				"gas_level":   gasLevel,
 			},
