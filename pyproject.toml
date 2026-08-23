@@ -1,2 +1,55 @@
-# Dummy content for pyproject.toml
-# This file was generated as part of the project structure setup.
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fleexa-iot-simulators"
+version = "0.1.0"
+description = "Python device simulators for the Fleexa IoT Fleet Management platform (temperature, gas, door, and light sensors; door and AC/curtain actuators)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Fleexa Graduation Project" },
+]
+
+# Runtime dependencies are managed in requirements.txt / devices/requirements.txt.
+# setup.py reads and mirrors them for packaging; keep the two in sync.
+dependencies = [
+    "paho-mqtt==2.1.0",
+    "jsonschema==4.26.0",
+    "python-dateutil==2.9.0.post0",
+    "boto3==1.42.50",
+    "PyYAML==6.0.2",
+    "typing-extensions==4.13.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "flake8",
+    "pylint",
+    "black",
+    "responses",
+]
+
+# ---------------------------------------------------------------------------
+# Tooling configuration
+# ---------------------------------------------------------------------------
+# Test discovery/markers live in pytest.ini (repo root) and take precedence
+# over any [tool.pytest.ini_options] table here — intentionally not
+# duplicated in this file to avoid the two configs drifting out of sync.
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  devices/certs
+  | graphify-out
+  | mobile
+  | infra-iot-fleet/terraform
+)/
+'''

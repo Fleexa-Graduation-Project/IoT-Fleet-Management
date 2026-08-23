@@ -1,2 +1,102 @@
-# Dummy content for high_latency.json
-# This file was generated as part of the project structure setup.
+{
+  "AlarmName": "fleexa-prod-lambda-high-latency",
+  "AlarmDescription": "Fires when the worst p99 Duration among the 5 Fleexa Lambda functions (api-service, iot-ingestion, door-watch, ac-timer-watch, db-export) exceeds 3000ms for 3 consecutive 5 minute periods.",
+  "ActionsEnabled": true,
+  "OKActions": [],
+  "AlarmActions": [
+    "arn:aws:sns:us-east-1:123456789012:fleexa-prod-alerts"
+  ],
+  "InsufficientDataActions": [],
+  "EvaluationPeriods": 3,
+  "DatapointsToAlarm": 2,
+  "Threshold": 3000,
+  "ComparisonOperator": "GreaterThanThreshold",
+  "TreatMissingData": "notBreaching",
+  "Metrics": [
+    {
+      "Id": "api_service_p99",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Duration",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "api-service" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "p99"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "iot_ingestion_p99",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Duration",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "iot-ingestion" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "p99"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "door_watch_p99",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Duration",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "door-watch" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "p99"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "ac_timer_watch_p99",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Duration",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "ac-timer-watch" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "p99"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "db_export_p99",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Duration",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "db-export" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "p99"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "max_p99_duration",
+      "Expression": "MAX([api_service_p99, iot_ingestion_p99, door_watch_p99, ac_timer_watch_p99, db_export_p99])",
+      "Label": "MaxLambdaP99Duration",
+      "ReturnData": true
+    }
+  ],
+  "Tags": [
+    { "Key": "Project", "Value": "Fleexa" },
+    { "Key": "ManagedBy", "Value": "monitoring/cloudwatch" }
+  ]
+}

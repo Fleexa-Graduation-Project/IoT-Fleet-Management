@@ -1,2 +1,39 @@
-# Dummy content for .dockerignore
-# This file was generated as part of the project structure setup.
+# devices/Dockerfile is built with the repo root as context (see
+# devices/docker-compose.yml: `context: ..`). Keep the build context small
+# by excluding everything the image doesn't need.
+
+.git
+.gitignore
+.github
+
+# Python
+.venv
+venv
+__pycache__/
+*.py[cod]
+*.egg-info
+.pytest_cache
+.mypy_cache
+
+# Device certs are mounted as a read-only volume at runtime
+# (see devices/Dockerfile: `VOLUME ["/app/certs"]`) — never bake them in.
+devices/certs
+
+# Not needed inside the device simulator image
+backend
+mobile
+infra-iot-fleet
+design
+docs
+monitoring
+graphify-out
+node_modules
+
+# Local dev / editor files
+.vscode
+.idea
+*.md
+*.log
+.env
+.env.*
+!devices/.env.example

@@ -1,2 +1,577 @@
-# Dummy content for openapi.yaml
-# This file was generated as part of the project structure setup.
+openapi: 3.0.3
+info:
+  title: Fleexa IoT Fleet Management API
+  description: >
+    REST API served by the api-service AWS Lambda (Gin router behind API Gateway).
+    See backend/docs/api/api_spec.md for full worked examples of every response shape.
+  version: "1.0"
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development
+  - url: https://{apiId}.execute-api.{region}.amazonaws.com/api/v1
+    description: Deployed API Gateway stage (values from Terraform output)
+    variables:
+      apiId:
+        default: your-api-id
+      region:
+        default: us-east-1
+
+tags:
+  - name: Auth
+  - name: Devices
+  - name: Alerts
+  - name: Users
+  - name: System
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Create a new account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, password, confirm_password]
+              properties:
+                username: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, format: password, minLength: 8 }
+                confirm_password: { type: string, format: password }
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: account created successfully }
+        "400": { description: Validation error or password mismatch, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "409": { description: Email already registered, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /auth/signin:
+    post:
+      tags: [Auth]
+      summary: Sign in and obtain Cognito tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        "200":
+          description: Cognito token set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+        "401": { description: Invalid credentials, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Exchange a refresh token for new tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: New Cognito token set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+        "401": { description: Refresh token invalid or expired, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request a password reset code by email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        "200":
+          description: Always 200 to avoid leaking which emails are registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password using an emailed verification code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code, new_password, confirm_new_password]
+              properties:
+                email: { type: string, format: email }
+                code: { type: string }
+                new_password: { type: string, format: password, minLength: 8 }
+                confirm_new_password: { type: string, format: password }
+      responses:
+        "200": { description: Password reset, content: { application/json: { schema: { type: object, properties: { message: { type: string } } } } } }
+        "400": { description: Invalid/expired code or password mismatch, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change the signed-in user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password, confirm_new_password]
+              properties:
+                current_password: { type: string, format: password }
+                new_password: { type: string, format: password, minLength: 8 }
+                confirm_new_password: { type: string, format: password }
+      responses:
+        "200": { description: Password changed, content: { application/json: { schema: { type: object, properties: { message: { type: string } } } } } }
+        "401": { description: Current password incorrect, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /auth/profile:
+    get:
+      tags: [Auth]
+      summary: Get the signed-in Cognito identity
+      responses:
+        "200":
+          description: Identity for the current access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: { type: string }
+                  username: { type: string }
+                  email: { type: string }
+
+  /auth/account:
+    delete:
+      tags: [Auth]
+      summary: Delete the signed-in account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password: { type: string, format: password }
+      responses:
+        "200": { description: Account deleted, content: { application/json: { schema: { type: object, properties: { message: { type: string } } } } } }
+        "401": { description: Incorrect password, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /devices:
+    get:
+      tags: [Devices]
+      summary: List all devices owned by the caller
+      responses:
+        "200":
+          description: Live device states
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Device" }
+
+  /devices/{id}:
+    get:
+      tags: [Devices]
+      summary: Get one device's full state, with type-specific insights
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      responses:
+        "200":
+          description: Device state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "404": { description: Device not found, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /devices/{id}/telemetry:
+    get:
+      tags: [Devices]
+      summary: Get historical telemetry for one device
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+        - name: period
+          in: query
+          description: Time window. 24h reads DynamoDB (hot tier); 7d/1m read pre-aggregated S3 JSON (cold tier).
+          schema: { type: string, enum: [24h, 7d, 1m], default: 24h }
+        - name: metric
+          in: query
+          description: Payload field to chart (e.g. temp, light_level, gas_level).
+          schema: { type: string, default: temp }
+      responses:
+        "200":
+          description: Telemetry chart data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelemetryResponse"
+        "404": { description: Device not found, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /devices/{id}/alerts:
+    get:
+      tags: [Devices]
+      summary: Get alert history for one device
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      responses:
+        "200":
+          description: Alerts for this device
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Alert" }
+        "404": { description: Device not found, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /devices/{id}/commands:
+    post:
+      tags: [Devices]
+      summary: Send a control command to an actuator
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommandRequest"
+      responses:
+        "202":
+          description: Command published to the device's MQTT command topic
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string, example: Command dispatched successfully }
+                  request_id: { type: string, example: cmd-1708434000123 }
+        "400": { description: Missing action, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "500": { description: Failed to publish to IoT Core, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /devices/{id}/preferences:
+    put:
+      tags: [Devices]
+      summary: Update per-device preferences (currently door unlock-duration baseline)
+      parameters:
+        - $ref: "#/components/parameters/DeviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [normal_unlock_duration]
+              properties:
+                normal_unlock_duration:
+                  type: number
+                  description: Baseline "normal" unlock duration in seconds, used to flag above-normal unlocks.
+                  example: 15
+      responses:
+        "200":
+          description: Preference saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  normal_unlock_duration: { type: number }
+        "400": { description: Invalid value, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /alerts:
+    get:
+      tags: [Alerts]
+      summary: Get a sorted alert feed across all of the caller's devices
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: before
+          in: query
+          description: Unix timestamp cursor for pagination.
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Alerts, newest first, plus an optional pagination cursor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Alert" }
+                  next_cursor:
+                    type: integer
+                    nullable: true
+
+  /alerts/read:
+    put:
+      tags: [Alerts]
+      summary: Mark one alert as read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alert_id]
+              properties:
+                alert_id: { type: string }
+      responses:
+        "200": { description: Alert marked read, content: { application/json: { schema: { type: object, properties: { message: { type: string } } } } } }
+        "400": { description: alert_id required, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  /users/preferences:
+    get:
+      tags: [Users]
+      summary: Get the caller's notification preferences and registered FCM tokens
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    put:
+      tags: [Users]
+      summary: Update notification preferences and/or register an FCM push token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hardware_id:
+                  type: string
+                  description: Identifier for the calling mobile device. Required to register/unregister a token.
+                fcm_token:
+                  type: string
+                  description: Firebase push token. Empty string unregisters hardware_id.
+                receive_notifications: { type: boolean }
+                receive_critical: { type: boolean }
+                receive_warnings: { type: boolean }
+      responses:
+        "200":
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /system/overview:
+    get:
+      tags: [System]
+      summary: Aggregated dashboard data (connection status, alerts chart, energy chart)
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string, enum: [24h, 7d, 1m], default: 7d }
+      responses:
+        "200":
+          description: System overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  system_status: { type: string, example: Connected }
+                  devices_online: { type: string, example: "5 / 5" }
+                  alerts_chart:
+                    type: object
+                    properties:
+                      critical:
+                        type: array
+                        items: { $ref: "#/components/schemas/ChartPoint" }
+                      warning:
+                        type: array
+                        items: { $ref: "#/components/schemas/ChartPoint" }
+                  alerts_chart_max: { type: number }
+                  energy_consumption:
+                    type: array
+                    items: { $ref: "#/components/schemas/ChartPoint" }
+                  energy_chart_max: { type: number }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Amazon Cognito access token.
+
+  parameters:
+    DeviceId:
+      name: id
+      in: path
+      required: true
+      description: Device ID, e.g. temp-sensor-01, door-actuator-01, ac-actuator-01.
+      schema: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+    AuthTokens:
+      type: object
+      properties:
+        AccessToken: { type: string }
+        IdToken: { type: string }
+        RefreshToken: { type: string }
+        ExpiresIn: { type: integer }
+        TokenType: { type: string, example: Bearer }
+
+    ChartPoint:
+      type: object
+      properties:
+        label: { type: string, example: "Apr 26" }
+        value: { type: number }
+
+    Device:
+      type: object
+      description: Latest known state of one device (models.DeviceState).
+      properties:
+        user_id: { type: string }
+        device_id: { type: string, example: temp-sensor-01 }
+        type:
+          type: string
+          enum: [temp-sensor, door-sensor, gas-sensor, light-sensor, door-actuator, ac-actuator]
+        status: { type: string, enum: [ONLINE, OFFLINE] }
+        operational_state: { type: string, description: "Device-type-specific state, e.g. NORMAL, WARNING, LOCKED, ON." }
+        health: { type: string, example: HEALTHY }
+        payload:
+          type: object
+          description: Device-type-specific fields (sensor readings, actuator state, computed insights). Free-form — see backend/docs/api/api_spec.md for a payload example per device type.
+          additionalProperties: true
+        normal_unlock_duration:
+          type: number
+          description: Door sensor only — baseline unlock duration in seconds.
+        last_seen_at: { type: integer, description: Unix timestamp of the last telemetry message. }
+
+    TelemetryResponse:
+      type: object
+      properties:
+        device_id: { type: string }
+        period: { type: string, enum: [24h, 7d, 1m] }
+        source: { type: string, enum: [DynamoDB, "S3 processed data"] }
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/ChartPoint" }
+        chart_max: { type: number }
+        running_time:
+          type: string
+          description: Present only for ac-actuator, period=24h.
+
+    Alert:
+      type: object
+      description: models.Alert
+      properties:
+        alert_id: { type: string }
+        user_id: { type: string }
+        device_id: { type: string }
+        timestamp: { type: integer }
+        type: { type: string, description: Device type that raised the alert. }
+        severity: { type: string, enum: [WARNING, CRITICAL] }
+        payload:
+          type: object
+          additionalProperties: true
+        is_read: { type: boolean }
+
+    CommandRequest:
+      type: object
+      description: Body accepted by POST /devices/:id/commands (published to MQTT as models.Command).
+      required: [action]
+      properties:
+        action:
+          type: string
+          description: e.g. SET_STATE, SET_POWER, SET_TEMPERATURE, SET_MODE, SET_TIMER, LOCK, UNLOCK.
+          example: SET_STATE
+        parameters:
+          type: object
+          additionalProperties: true
+          example: { power_state: "ON", target_temp: 24.0, mode: "COOLING" }
+
+    Command:
+      type: object
+      description: Stored command history record (models.Command).
+      properties:
+        request_id: { type: string }
+        user_id: { type: string }
+        device_id: { type: string }
+        timestamp: { type: integer }
+        action: { type: string }
+        parameters:
+          type: object
+          additionalProperties: true
+        expires_at:
+          type: integer
+          description: DynamoDB TTL — 7 days after creation.
+
+    UserProfile:
+      type: object
+      description: models.UserProfile
+      properties:
+        user_id: { type: string }
+        username: { type: string }
+        email: { type: string }
+        fcm_device_tokens:
+          type: object
+          description: Map of hardware_id -> FCM push token, one entry per registered mobile device.
+          additionalProperties: { type: string }
+        receive_notifications: { type: boolean }
+        receive_critical: { type: boolean }
+        receive_warnings: { type: boolean }

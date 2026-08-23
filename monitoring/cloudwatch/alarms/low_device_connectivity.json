@@ -1,2 +1,32 @@
-# Dummy content for low_device_connectivity.json
-# This file was generated as part of the project structure setup.
+{
+  "AlarmName": "fleexa-prod-low-device-connectivity",
+  "AlarmDescription": "Fires when the average number of devices with a live heartbeat (derived by scanning Fleexa_Devices for operational_state / last_seen within the expected heartbeat window) drops below 3 for 3 consecutive 5 minute periods. Threshold is sized against the 6 demo devices provisioned by infra-iot-fleet/scripts/register_devices.sh — raise it once the fleet is provisioned at real scale.",
+  "ActionsEnabled": true,
+  "OKActions": [
+    "arn:aws:sns:us-east-1:123456789012:fleexa-prod-alerts"
+  ],
+  "AlarmActions": [
+    "arn:aws:sns:us-east-1:123456789012:fleexa-prod-alerts"
+  ],
+  "InsufficientDataActions": [
+    "arn:aws:sns:us-east-1:123456789012:fleexa-prod-alerts"
+  ],
+  "Namespace": "Fleexa/DeviceConnectivity",
+  "MetricName": "ConnectedDeviceCount",
+  "Dimensions": [
+    { "Name": "Environment", "Value": "prod" }
+  ],
+  "Statistic": "Average",
+  "Period": 300,
+  "EvaluationPeriods": 3,
+  "DatapointsToAlarm": 2,
+  "Threshold": 3,
+  "ComparisonOperator": "LessThanThreshold",
+  "TreatMissingData": "breaching",
+  "Unit": "Count",
+  "Tags": [
+    { "Key": "Project", "Value": "Fleexa" },
+    { "Key": "ManagedBy", "Value": "monitoring/cloudwatch" },
+    { "Key": "SourceTable", "Value": "Fleexa_Devices" }
+  ]
+}

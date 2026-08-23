@@ -1,2 +1,26 @@
-# Dummy content for .pylintrc
-# This file was generated as part of the project structure setup.
+[MAIN]
+# Only lint the Python that actually exists in this repo: the device
+# simulators and the root orchestrator script.
+ignore=.git,.venv,venv,__pycache__,build,dist,certs,graphify-out,mobile,infra-iot-fleet,backend
+ignore-patterns=.*_pb2\.py
+
+[FORMAT]
+# Keep in sync with black's line length in pyproject.toml and .flake8.
+max-line-length=88
+
+[MESSAGES CONTROL]
+# This is a small simulator codebase, not a public library — these checks
+# are noisy without adding much value here.
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    duplicate-code,
+    fixme
+
+[DESIGN]
+# BaseDevice and its subclasses legitimately need a handful of constructor
+# args (mqtt broker/port/certs/etc.) — the default of 5 is too strict.
+max-args=10
+max-attributes=15

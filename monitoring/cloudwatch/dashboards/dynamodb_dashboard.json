@@ -1,2 +1,124 @@
-# Dummy content for dynamodb_dashboard.json
-# This file was generated as part of the project structure setup.
+{
+  "widgets": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "# Fleexa — DynamoDB Tables\nFleexa_Devices · Fleexa_Telemetry · Fleexa_Alerts · Fleexa_Commands · Fleexa_Users"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 1,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Consumed Read Capacity Units",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "Fleexa_Devices"],
+          ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "Fleexa_Telemetry"],
+          ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "Fleexa_Alerts"],
+          ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "Fleexa_Commands"],
+          ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "Fleexa_Users"]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 1,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Consumed Write Capacity Units",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          ["AWS/DynamoDB", "ConsumedWriteCapacityUnits", "TableName", "Fleexa_Devices"],
+          ["AWS/DynamoDB", "ConsumedWriteCapacityUnits", "TableName", "Fleexa_Telemetry"],
+          ["AWS/DynamoDB", "ConsumedWriteCapacityUnits", "TableName", "Fleexa_Alerts"],
+          ["AWS/DynamoDB", "ConsumedWriteCapacityUnits", "TableName", "Fleexa_Commands"],
+          ["AWS/DynamoDB", "ConsumedWriteCapacityUnits", "TableName", "Fleexa_Users"]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 7,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Read Throttle Events",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Devices"],
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Telemetry"],
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Alerts"],
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Commands"],
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Users"]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 7,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Write Throttle Events",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Devices"],
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Telemetry"],
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Alerts"],
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Commands"],
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Users"]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 13,
+      "width": 24,
+      "height": 6,
+      "properties": {
+        "title": "Item Count (approximate, per table)",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 3600,
+        "stat": "Average",
+        "metrics": [
+          ["AWS/DynamoDB", "ItemCount", "TableName", "Fleexa_Devices"],
+          ["AWS/DynamoDB", "ItemCount", "TableName", "Fleexa_Telemetry"],
+          ["AWS/DynamoDB", "ItemCount", "TableName", "Fleexa_Alerts"],
+          ["AWS/DynamoDB", "ItemCount", "TableName", "Fleexa_Commands"],
+          ["AWS/DynamoDB", "ItemCount", "TableName", "Fleexa_Users"]
+        ]
+      }
+    }
+  ]
+}

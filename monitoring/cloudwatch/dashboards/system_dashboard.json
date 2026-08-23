@@ -1,2 +1,125 @@
-# Dummy content for system_dashboard.json
-# This file was generated as part of the project structure setup.
+{
+  "widgets": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "# Fleexa — System Overview\nFleet health at a glance. Drill into [Lambda](lambda_dashboard.json) and [DynamoDB](dynamodb_dashboard.json) dashboards for per-resource detail."
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 1,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Total Lambda Invocations",
+        "view": "singleValue",
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          [{ "expression": "SUM([m1,m2,m3,m4,m5])", "label": "Total Invocations", "id": "e1" }],
+          ["AWS/Lambda", "Invocations", "FunctionName", "api-service", { "id": "m1", "visible": false }],
+          ["AWS/Lambda", "Invocations", "FunctionName", "iot-ingestion", { "id": "m2", "visible": false }],
+          ["AWS/Lambda", "Invocations", "FunctionName", "door-watch", { "id": "m3", "visible": false }],
+          ["AWS/Lambda", "Invocations", "FunctionName", "ac-timer-watch", { "id": "m4", "visible": false }],
+          ["AWS/Lambda", "Invocations", "FunctionName", "db-export", { "id": "m5", "visible": false }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 1,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Total Lambda Errors",
+        "view": "singleValue",
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          [{ "expression": "SUM([m1,m2,m3,m4,m5])", "label": "Total Errors", "id": "e1" }],
+          ["AWS/Lambda", "Errors", "FunctionName", "api-service", { "id": "m1", "visible": false }],
+          ["AWS/Lambda", "Errors", "FunctionName", "iot-ingestion", { "id": "m2", "visible": false }],
+          ["AWS/Lambda", "Errors", "FunctionName", "door-watch", { "id": "m3", "visible": false }],
+          ["AWS/Lambda", "Errors", "FunctionName", "ac-timer-watch", { "id": "m4", "visible": false }],
+          ["AWS/Lambda", "Errors", "FunctionName", "db-export", { "id": "m5", "visible": false }]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 1,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "title": "Connected Devices",
+        "view": "singleValue",
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Average",
+        "metrics": [
+          ["Fleexa/DeviceConnectivity", "ConnectedDeviceCount", "Environment", "prod"]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 7,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Lambda Errors by Function",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          ["AWS/Lambda", "Errors", "FunctionName", "api-service"],
+          ["AWS/Lambda", "Errors", "FunctionName", "iot-ingestion"],
+          ["AWS/Lambda", "Errors", "FunctionName", "door-watch"],
+          ["AWS/Lambda", "Errors", "FunctionName", "ac-timer-watch"],
+          ["AWS/Lambda", "Errors", "FunctionName", "db-export"]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 7,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "DynamoDB Throttle Events by Table",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Devices"],
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Devices"],
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Telemetry"],
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Telemetry"],
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Alerts"],
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Alerts"],
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Commands"],
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Commands"],
+          ["AWS/DynamoDB", "ReadThrottleEvents", "TableName", "Fleexa_Users"],
+          ["AWS/DynamoDB", "WriteThrottleEvents", "TableName", "Fleexa_Users"]
+        ]
+      }
+    }
+  ]
+}

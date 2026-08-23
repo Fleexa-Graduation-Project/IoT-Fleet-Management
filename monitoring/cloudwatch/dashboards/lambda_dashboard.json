@@ -1,2 +1,122 @@
-# Dummy content for lambda_dashboard.json
-# This file was generated as part of the project structure setup.
+{
+  "widgets": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 24,
+      "height": 1,
+      "properties": {
+        "markdown": "# Fleexa — Lambda Functions\napi-service · iot-ingestion · door-watch · ac-timer-watch · db-export"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 1,
+      "width": 24,
+      "height": 6,
+      "properties": {
+        "title": "Invocations",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          ["AWS/Lambda", "Invocations", "FunctionName", "api-service"],
+          ["AWS/Lambda", "Invocations", "FunctionName", "iot-ingestion"],
+          ["AWS/Lambda", "Invocations", "FunctionName", "door-watch"],
+          ["AWS/Lambda", "Invocations", "FunctionName", "ac-timer-watch"],
+          ["AWS/Lambda", "Invocations", "FunctionName", "db-export"]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 7,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Errors",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          ["AWS/Lambda", "Errors", "FunctionName", "api-service"],
+          ["AWS/Lambda", "Errors", "FunctionName", "iot-ingestion"],
+          ["AWS/Lambda", "Errors", "FunctionName", "door-watch"],
+          ["AWS/Lambda", "Errors", "FunctionName", "ac-timer-watch"],
+          ["AWS/Lambda", "Errors", "FunctionName", "db-export"]
+        ],
+        "annotations": {
+          "horizontal": [
+            {
+              "label": "error threshold",
+              "value": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 7,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "title": "Throttles",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "stat": "Sum",
+        "metrics": [
+          ["AWS/Lambda", "Throttles", "FunctionName", "api-service"],
+          ["AWS/Lambda", "Throttles", "FunctionName", "iot-ingestion"],
+          ["AWS/Lambda", "Throttles", "FunctionName", "door-watch"],
+          ["AWS/Lambda", "Throttles", "FunctionName", "ac-timer-watch"],
+          ["AWS/Lambda", "Throttles", "FunctionName", "db-export"]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 13,
+      "width": 24,
+      "height": 6,
+      "properties": {
+        "title": "Duration (Average / p99)",
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "period": 300,
+        "metrics": [
+          ["AWS/Lambda", "Duration", "FunctionName", "api-service", { "stat": "Average", "label": "api-service (avg)" }],
+          ["AWS/Lambda", "Duration", "FunctionName", "api-service", { "stat": "p99", "label": "api-service (p99)" }],
+          ["AWS/Lambda", "Duration", "FunctionName", "iot-ingestion", { "stat": "Average", "label": "iot-ingestion (avg)" }],
+          ["AWS/Lambda", "Duration", "FunctionName", "iot-ingestion", { "stat": "p99", "label": "iot-ingestion (p99)" }],
+          ["AWS/Lambda", "Duration", "FunctionName", "door-watch", { "stat": "Average", "label": "door-watch (avg)" }],
+          ["AWS/Lambda", "Duration", "FunctionName", "door-watch", { "stat": "p99", "label": "door-watch (p99)" }],
+          ["AWS/Lambda", "Duration", "FunctionName", "ac-timer-watch", { "stat": "Average", "label": "ac-timer-watch (avg)" }],
+          ["AWS/Lambda", "Duration", "FunctionName", "ac-timer-watch", { "stat": "p99", "label": "ac-timer-watch (p99)" }],
+          ["AWS/Lambda", "Duration", "FunctionName", "db-export", { "stat": "Average", "label": "db-export (avg)" }],
+          ["AWS/Lambda", "Duration", "FunctionName", "db-export", { "stat": "p99", "label": "db-export (p99)" }]
+        ],
+        "annotations": {
+          "horizontal": [
+            {
+              "label": "latency threshold (ms)",
+              "value": 3000
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,2 +1,102 @@
-# Dummy content for high_error_rate.json
-# This file was generated as part of the project structure setup.
+{
+  "AlarmName": "fleexa-prod-lambda-high-error-rate",
+  "AlarmDescription": "Aggregate error count across all 5 Fleexa Lambda functions (api-service, iot-ingestion, door-watch, ac-timer-watch, db-export) exceeded the threshold in a single 5 minute period.",
+  "ActionsEnabled": true,
+  "OKActions": [],
+  "AlarmActions": [
+    "arn:aws:sns:us-east-1:123456789012:fleexa-prod-alerts"
+  ],
+  "InsufficientDataActions": [],
+  "EvaluationPeriods": 1,
+  "DatapointsToAlarm": 1,
+  "Threshold": 5,
+  "ComparisonOperator": "GreaterThanThreshold",
+  "TreatMissingData": "notBreaching",
+  "Metrics": [
+    {
+      "Id": "api_service_errors",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Errors",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "api-service" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "Sum"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "iot_ingestion_errors",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Errors",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "iot-ingestion" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "Sum"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "door_watch_errors",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Errors",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "door-watch" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "Sum"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "ac_timer_watch_errors",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Errors",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "ac-timer-watch" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "Sum"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "db_export_errors",
+      "MetricStat": {
+        "Metric": {
+          "Namespace": "AWS/Lambda",
+          "MetricName": "Errors",
+          "Dimensions": [
+            { "Name": "FunctionName", "Value": "db-export" }
+          ]
+        },
+        "Period": 300,
+        "Stat": "Sum"
+      },
+      "ReturnData": false
+    },
+    {
+      "Id": "total_errors",
+      "Expression": "api_service_errors + iot_ingestion_errors + door_watch_errors + ac_timer_watch_errors + db_export_errors",
+      "Label": "TotalLambdaErrors",
+      "ReturnData": true
+    }
+  ],
+  "Tags": [
+    { "Key": "Project", "Value": "Fleexa" },
+    { "Key": "ManagedBy", "Value": "monitoring/cloudwatch" }
+  ]
+}
